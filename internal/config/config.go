@@ -24,7 +24,7 @@ func NewConfig(getenv func(string) string) (*Config, error) {
 	return &Config{
 		Dev: getenv("APP_ENV") != "production",
 		Server: ServerConfig{
-			Host:            getenv("SERVER_HOST"),
+			Host:            getenvOrDefault(getenv, "SERVER_HOST", "localhost"),
 			Port:            port,
 			ShutdownTimeout: time.Duration(shutdownTimeout) * time.Second,
 		},
