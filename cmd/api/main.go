@@ -3,55 +3,68 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"queue-bite/internal/config"
+	"queue-bite/internal/config/logger"
 	"queue-bite/internal/server"
 )
 
-func gracefulShutdown(apiServer *http.Server, done chan bool) {
-	// Create context that listens for the interrupt signal from the OS.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Listen for the interrupt signal.
-	<-ctx.Done()
-
-	log.Println("shutting down gracefully, press Ctrl+C again to force")
-
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := apiServer.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown with error: %v", err)
+func main() {
+	ctx := context.Background()
+	if err := run(ctx, os.Args, os.Getenv, os.Stdin, os.Stdout, os.Stderr); err != nil {
+		os.Exit(1)
 	}
-
-	log.Println("Server exiting")
-
-	// Notify the main goroutine that the shutdown is complete
-	done <- true
 }
 
-func main() {
+func run(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+) error {
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	server := server.NewServer()
-
-	// Create a done channel to signal when the shutdown is complete
-	done := make(chan bool, 1)
-
-	// Run graceful shutdown in a separate goroutine
-	go gracefulShutdown(server, done)
-
-	err := server.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		panic(fmt.Sprintf("http server error: %s", err))
+	cfg, err := config.NewConfig(getenv)
+	if err != nil {
+		return err
 	}
+	logger := log.NewZerologLogger(stdout, cfg.Dev)
 
-	// Wait for the graceful shutdown to complete
-	<-done
-	log.Println("Graceful shutdown complete.")
+	server := server.NewServer(cfg, &logger)
+	serverError := make(chan error, 1)
+
+	go func() {
+		logger.LogInfo(log.Server, "starting server", "addr", server.Addr)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.LogErr(log.Server, err, "could not start server")
+			serverError <- fmt.Errorf("could not start server: %w", err)
+			return
+		}
+		serverError <- nil
+	}()
+
+	select {
+	case err := <-serverError:
+		return err
+	case <-ctx.Done():
+		logger.LogInfo(log.Server, "shutting down server gracefully, press <C-c> again to force")
+
+		sctx, stop := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+		defer stop()
+
+		if err := server.Shutdown(sctx); err != nil {
+			logger.LogErr(log.Server, err, "server forced to shutdown")
+			return fmt.Errorf("server forced to shutdown with error: %w", err)
+		}
+		logger.LogInfo(log.Server, "server exiting")
+		return nil
+	}
 }
