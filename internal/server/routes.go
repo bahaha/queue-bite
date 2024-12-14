@@ -1,21 +1,18 @@
 package server
 
 import (
-	"encoding/json"
-	"log"
 	"net/http"
 
-	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"queue-bite/cmd/web"
+
+	waitlist "queue-bite/internal/features/waitlist/handlers"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
@@ -23,25 +20,20 @@ func (s *Server) RegisterRoutes() http.Handler {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	r.Handle("/assets/*", http.FileServer(http.FS(Files)))
 
-	r.Get("/", s.HelloWorldHandler)
+	r.Get("/", redirect("/waitlist", http.StatusTemporaryRedirect))
 
-	fileServer := http.FileServer(http.FS(web.Files))
-	r.Handle("/assets/*", fileServer)
-	r.Get("/web", templ.Handler(web.HelloForm()).ServeHTTP)
-	r.Post("/hello", web.HelloWebHandler)
+	r.Route("/waitlist", func(r chi.Router) {
+		handler := waitlist.NewWaitlistHandlers()
+		r.Get("/", handler.Vitrine.GetVitrineDisplay)
+	})
 
 	return r
 }
 
-func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
-	resp := make(map[string]string)
-	resp["message"] = "Hello World"
-
-	jsonResp, err := json.Marshal(resp)
-	if err != nil {
-		log.Fatalf("error handling JSON marshal. Err: %v", err)
+func redirect(path string, status int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, path, status)
 	}
-
-	_, _ = w.Write(jsonResp)
 }
