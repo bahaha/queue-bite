@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"queue-bite/pkg/utils"
+	"queue-bite/pkg/utils/env"
 )
 
 type Config struct {
@@ -38,7 +38,7 @@ type EnvVars struct {
 }
 
 func LoadEnvConfig(getenv func(string) string) (*EnvVars, error) {
-	return utils.LoadConfig(getenv, &EnvVars{})
+	return env.LoadConfig(getenv, &EnvVars{})
 }
 
 func NewConfig(getenv func(string) string) (*Config, error) {

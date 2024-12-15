@@ -12,7 +12,7 @@ import (
 	"queue-bite/internal/config"
 	"queue-bite/internal/config/logger"
 	"queue-bite/internal/server"
-	_ "queue-bite/pkg/utils/autoload"
+	_ "queue-bite/pkg/utils/env/autoload"
 )
 
 func main() {
