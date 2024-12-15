@@ -7,7 +7,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go install github.com/a-h/templ/cmd/templ@latest && \
+RUN go run cmd/checkenv.go && \
+    go install github.com/a-h/templ/cmd/templ@latest && \
     templ generate && \
     curl -sL https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 -o tailwindcss && \
     chmod +x tailwindcss && \

@@ -26,7 +26,7 @@ type RedisComponent struct {
 
 func NewRedis(cfg *config.Config, logger log.Logger) *RedisComponent {
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr(),
+		Addr:     cfg.Redis.Addr,
 		Password: cfg.Redis.Password,
 	})
 

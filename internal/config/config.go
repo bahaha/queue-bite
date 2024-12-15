@@ -1,44 +1,63 @@
 package config
 
 import (
-	"strconv"
+	"fmt"
 	"time"
+
+	"queue-bite/pkg/utils"
 )
 
 type Config struct {
 	Dev    bool
-	Server *ServerConfig
-	Redis  *RedisConfig
+	Server *ServerConf
+	Redis  *RedisConf
 }
 
-type ServerConfig struct {
+type ServerConf struct {
 	Host               string
 	Port               int
 	ShutdownTimeout    time.Duration
 	HealthCheckTimeout time.Duration
 }
 
-func NewConfig(getenv func(string) string) (*Config, error) {
+type RedisConf struct {
+	Addr     string
+	Password string
+}
 
-	port, _ := strconv.Atoi(getenvOrDefault(getenv, "SERVER_PORT", "55666"))
-	shutdownTimeout, _ := strconv.Atoi(getenvOrDefault(getenv, "SERVER_SHUTDOWN_TIMEOUT_SECONDS", "5"))
-	healthcheckTimeout, _ := strconv.Atoi(getenvOrDefault(getenv, "HEALTH_CHECK_TIMEOUT", "5"))
+type EnvVars struct {
+	Host               string        `env:"SERVER_HOST" default:"localhost"`
+	Port               int           `env:"SERVER_PORT" default:"55666"`
+	ShutdownTimeout    time.Duration `env:"SERVER_SHUTDOWN_TIMEOUT_SECONDS" default:"5s"`
+	HealthCheckTimeout time.Duration `env:"HEALTH_CHECK_TIMEOUT" default:"5s"`
+
+	// Redis
+	RedisHost     string `env:"WAITLIST_REDIS_HOST"`
+	RedisPort     int    `env:"WAITLIST_REDIS_PORT" default:"6379"`
+	RedisPassword string `env:"WAITLIST_REDIS_PASSWORD"`
+}
+
+func LoadEnvConfig(getenv func(string) string) (*EnvVars, error) {
+	return utils.LoadConfig(getenv, &EnvVars{})
+}
+
+func NewConfig(getenv func(string) string) (*Config, error) {
+	cfg, err := LoadEnvConfig(getenv)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid server configuration, check your environment values: %v", err)
+	}
 
 	return &Config{
 		Dev: getenv("APP_ENV") != "production",
-		Server: &ServerConfig{
-			Host:               getenvOrDefault(getenv, "SERVER_HOST", "localhost"),
-			Port:               port,
-			ShutdownTimeout:    time.Duration(shutdownTimeout) * time.Second,
-			HealthCheckTimeout: time.Duration(healthcheckTimeout) * time.Second,
+		Server: &ServerConf{
+			Host:               cfg.Host,
+			Port:               cfg.Port,
+			ShutdownTimeout:    cfg.ShutdownTimeout,
+			HealthCheckTimeout: cfg.HealthCheckTimeout,
 		},
-		Redis: NewRedisConfig(getenv),
+		Redis: &RedisConf{
+			Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+			Password: cfg.RedisPassword,
+		},
 	}, nil
-}
-
-func getenvOrDefault(getenv func(string) string, key, defaultValue string) string {
-	if value := getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

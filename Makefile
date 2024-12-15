@@ -23,17 +23,23 @@ tailwind-install:
 
 build: tailwind-install templ-install
 	@echo "Building..."
+	@go run cmd/checkenv.go || exit 1
 	@templ generate
 	@./tailwindcss -i internal/server/assets/css/input.css -o internal/server/assets/css/output.css
 	@go build -o main cmd/api/main.go
 
 # Run the application
 run:
-	@go run cmd/api/main.go
+	@APP_ENV=dev go run cmd/api/main.go
+
+redis-run:
+	@docker-compose up redis_bp -d
+
 # Create DB container
 docker-run:
-	@if docker compose up --build 2>/dev/null; then \
-		: ; \
+	@cp .env.docker .env
+	@if command -v docker compose >/dev/null 2>&1; then \
+		docker compose up --build; \
 	else \
 		echo "Falling back to Docker Compose V1"; \
 		docker-compose up --build; \
@@ -41,8 +47,8 @@ docker-run:
 
 # Shutdown DB container
 docker-down:
-	@if docker compose down 2>/dev/null; then \
-		: ; \
+	@if command -v docker compose >/dev/null 2>&1; then \
+		docker compose down; \
 	else \
 		echo "Falling back to Docker Compose V1"; \
 		docker-compose down; \
@@ -51,7 +57,7 @@ docker-down:
 # Test the application
 test:
 	@echo "Testing..."
-	@go test ./... -v
+	@APP_ENV=test go test ./... 
 
 # Clean the binary
 clean:
@@ -59,7 +65,7 @@ clean:
 	@rm -f main
 
 # Live Reload
-watch:
+watch: redis-run
 	@if command -v air > /dev/null; then \
             air; \
             echo "Watching...";\

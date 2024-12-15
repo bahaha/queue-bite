@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	_ "github.com/joho/godotenv/autoload"
-
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
 	"queue-bite/internal/platform"
