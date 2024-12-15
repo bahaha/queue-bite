@@ -6,7 +6,31 @@ services:
       target: prod
     restart: unless-stopped
     ports:
-      - ${PORT}:${PORT}
+      - ${SERVER_PORT}:${SERVER_PORT}
     environment:
       APP_ENV: ${APP_ENV}
-      PORT: ${PORT}
+      SERVER_PORT: ${SERVER_PORT}
+      HEALTH_CHECK_TIMEOUT: ${HEALTH_CHECK_TIMEOUT}
+      WAITLIST_REDIS_HOST: ${WAITLIST_REDIS_HOST}
+      WAITLIST_REDIS_PORT: ${WAITLIST_REDIS_PORT}
+    depends_on:
+      redis_bp:
+        condition: service_healthy
+    networks:
+      - queue_bite
+  redis_bp:
+    image: redis:7.2.4
+    restart: unless-stopped
+    ports:
+      - "${WAITLIST_REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - queue_bite
+
+networks:
+  queue_bite:

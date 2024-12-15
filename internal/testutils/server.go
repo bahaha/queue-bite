@@ -10,9 +10,12 @@ import (
 	"testing"
 )
 
+type ServerComponent func(*TestServer) error
+
 type TestServer struct {
-	Port    int
-	envVars map[string]string
+	Port     int
+	envVars  map[string]string
+	cleanups []func(context.Context) error
 }
 
 func randomPort(t *testing.T, vars map[string]string) string {
@@ -32,7 +35,7 @@ func randomPort(t *testing.T, vars map[string]string) string {
 	return strconv.Itoa(port)
 }
 
-func NewTestServer(t *testing.T, vars map[string]string) *TestServer {
+func NewTestServer(t *testing.T, vars map[string]string, comps ...ServerComponent) *TestServer {
 	t.Helper()
 
 	port := randomPort(t, vars)
@@ -46,10 +49,27 @@ func NewTestServer(t *testing.T, vars map[string]string) *TestServer {
 
 	p, _ := strconv.Atoi(port)
 
-	return &TestServer{
+	ts := &TestServer{
 		Port:    p,
 		envVars: envVars,
 	}
+
+	for _, comp := range comps {
+		if err := comp(ts); err != nil {
+			t.Fatalf("failed to attach server component: %v", err)
+		}
+	}
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		for _, cleanup := range ts.cleanups {
+			if err := cleanup(ctx); err != nil {
+				t.Errorf("failed to cleanup server component: %v", err)
+			}
+		}
+	})
+
+	return ts
 }
 
 func (s *TestServer) Env(key string) string {

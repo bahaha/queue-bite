@@ -2,6 +2,7 @@ package log
 
 const (
 	Server = "sys/server"
+	Redis  = "middleware/redis"
 )
 
 type Logger interface {

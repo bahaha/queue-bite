@@ -9,17 +9,22 @@ import (
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
+	"queue-bite/internal/platform"
 )
 
 type Server struct {
 	cfg    *config.Config
-	logger *log.Logger
+	logger log.Logger
+
+	redis *platform.RedisComponent
 }
 
-func NewServer(cfg *config.Config, logger *log.Logger) *http.Server {
+func NewServer(cfg *config.Config, logger log.Logger) *http.Server {
 	NewServer := &Server{
 		cfg:    cfg,
 		logger: logger,
+
+		redis: platform.NewRedis(cfg, logger),
 	}
 
 	// Declare Server config

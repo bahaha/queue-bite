@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/cors"
 
 	waitlist "queue-bite/internal/features/waitlist/handlers"
+	"queue-bite/internal/platform"
+	"queue-bite/pkg/utils"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
@@ -23,6 +25,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Handle("/assets/*", http.FileServer(http.FS(Files)))
 
 	r.Get("/", redirect("/waitlist", http.StatusTemporaryRedirect))
+	r.Get("/healthz", healthHandler(s.redis))
 
 	r.Route("/waitlist", func(r chi.Router) {
 		handler := waitlist.NewWaitlistHandlers()
@@ -35,5 +38,20 @@ func (s *Server) RegisterRoutes() http.Handler {
 func redirect(path string, status int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, path, status)
+	}
+}
+
+func healthHandler(systemComponents ...platform.SystemComponents) http.HandlerFunc {
+	components := make(map[string]map[string]string)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, comp := range systemComponents {
+			components[comp.Name()] = comp.Health()
+		}
+
+		err := utils.Encode(w, r, http.StatusOK, components)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 }

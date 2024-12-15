@@ -37,7 +37,7 @@ func run(
 	}
 	logger := log.NewZerologLogger(stdout, cfg.Dev)
 
-	server := server.NewServer(cfg, &logger)
+	server := server.NewServer(cfg, logger)
 	serverError := make(chan error, 1)
 
 	go func() {
