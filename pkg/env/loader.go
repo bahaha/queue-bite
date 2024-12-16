@@ -74,31 +74,25 @@ func (l *Loader) Parse(config interface{}) error {
 		return fmt.Errorf("config must be a pointer to a struct")
 	}
 
-	cfgErr := &ConfigError{}
-	fields := l.getFields(v.Type())
-
-	for _, field := range fields {
-		value := v.FieldByName(field.Name)
-		if !value.CanSet() {
-			continue
-		}
-
-		if err := l.loadField(value, field); err != nil {
-			cfgErr.AddFieldError(field.Name, err)
-		}
-	}
-
-	if len(cfgErr.errors) > 0 {
-		return cfgErr
-	}
-	return nil
+	return l.parseStruct(v)
 }
 
-func (l *Loader) getFields(t reflect.Type) []Field {
-	var fields []Field
+func (l *Loader) parseStruct(v reflect.Value) error {
+	cfgErr := &ConfigError{}
+	t := v.Type()
+
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
 		if !sf.IsExported() {
+			continue
+		}
+
+		value := v.Field(i)
+
+		if value.Kind() == reflect.Struct {
+			if err := l.parseStruct(value); err != nil {
+				cfgErr.AddFieldError(sf.Name, err)
+			}
 			continue
 		}
 
@@ -108,16 +102,21 @@ func (l *Loader) getFields(t reflect.Type) []Field {
 		}
 
 		required, _ := strconv.ParseBool(sf.Tag.Get("required"))
-
-		fields = append(fields, Field{
+		if err := l.loadField(value, Field{
 			Name:       sf.Name,
 			EnvKey:     tag,
 			Type:       sf.Type,
 			Required:   required,
 			DefaultVal: sf.Tag.Get("default"),
-		})
+		}); err != nil {
+			cfgErr.AddFieldError(sf.Name, err)
+		}
 	}
-	return fields
+
+	if len(cfgErr.errors) > 0 {
+		return cfgErr
+	}
+	return nil
 }
 
 func (l *Loader) loadField(value reflect.Value, field Field) error {

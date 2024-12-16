@@ -182,4 +182,46 @@ func TestLoader(t *testing.T) {
 		}
 	})
 
+	t.Run("nested struct conf", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
+		type Conf struct {
+			Env    string `env:"APP_ENV" required:"T"`
+			Server struct {
+				Host string `env:"SERVER_HOST" required:"T"`
+				Port int    `env:"SERVER_PORT" default:"123456"`
+			}
+		}
+		env.setEnv(map[string]string{
+			"APP_ENV":     "test",
+			"SERVER_PORT": "55555",
+		})
+
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		cfg := &Conf{}
+		err := loader.Parse(cfg)
+		if err == nil {
+			t.Error("expected error for missing required string, got nil")
+		}
+
+		env.setEnv(map[string]string{
+			"SERVER_HOST": "localhost",
+		})
+		err = loader.Parse(cfg)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if cfg.Env != "test" {
+			t.Errorf("expect `Env` in root to be `test`, got %v", cfg.Env)
+		}
+		if cfg.Server.Host != "localhost" {
+			t.Errorf("expect `Host` in nested struct of key `Server` to be `localhost`, got %v", cfg.Server.Host)
+		}
+		if cfg.Server.Port != 55555 {
+			t.Errorf("expect `Port` in nested struct of key `Server` to be `55555`, got %v", cfg.Server.Port)
+		}
+
+	})
+
 }
