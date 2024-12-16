@@ -1,0 +1,66 @@
+@layer base {
+  :root {
+    --background: 35 29% 97%;
+    --foreground: 35 14% 22%;
+    --primary: 200 27% 50%;
+    --primary-foreground: 35 29% 97%;
+    --secondary: 35 15% 87%;
+    --secondary-foreground: 35 14% 22%;
+    --muted: 35 10% 92%;
+    --muted-foreground: 35 14% 45%;
+    --accent: 164 25% 65%;
+    --accent-foreground: 35 14% 22%;
+    --destructive: 3 41% 67%;
+    --destructive-foreground: 35 29% 97%;
+    --success: 150 22% 65%;
+    --success-foreground: 35 29% 97%;
+    --warning: 32 39% 67%;
+    --warning-foreground: 35 29% 97%;
+    --border: 35 15% 87%;
+    --input: 35 15% 87%;
+    --ring: 200 27% 50%;
+    --card: 35 29% 97%;
+    --card-foreground: 35 14% 22%;
+    --popover: 35 29% 97%;
+    --popover-foreground: 35 14% 22%;
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 35 14% 15%;
+    --foreground: 35 10% 90%;
+    --primary: 200 25% 55%;
+    --primary-foreground: 35 29% 97%;
+    --secondary: 35 12% 24%;
+    --secondary-foreground: 35 10% 90%;
+    --muted: 35 12% 24%;
+    --muted-foreground: 35 10% 70%;
+    --accent: 164 20% 50%;
+    --accent-foreground: 35 29% 97%;
+    --destructive: 3 35% 55%;
+    --destructive-foreground: 35 29% 97%;
+    --success: 150 20% 55%;
+    --success-foreground: 35 29% 97%;
+    --warning: 32 35% 55%;
+    --warning-foreground: 35 29% 97%;
+    --border: 35 12% 24%;
+    --input: 35 12% 24%;
+    --ring: 200 25% 55%;
+    --card: 35 14% 15%;
+    --card-foreground: 35 10% 90%;
+    --popover: 35 14% 15%;
+    --popover-foreground: 35 10% 90%;
+  }
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
+}
+

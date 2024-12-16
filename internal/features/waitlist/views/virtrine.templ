@@ -1,11 +1,22 @@
 package waitlist
 
-import layout "queue-bite/internal/layouts"
+import (
+	layout "queue-bite/internal/layouts"
+	"queue-bite/pkg/components/ui/button"
+)
 
 templ Virtrine() {
 	@layout.Base() {
 		<div class="text-rose-700">
 			Waitlist Virtrine Works!
 		</div>
+		@button.Button(
+			button.New().
+				WithClass("w-full").
+				WithSize(button.Large)
+                ,
+		) {
+			Join Waitlist
+		}
 	}
 }
