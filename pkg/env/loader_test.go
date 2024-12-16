@@ -5,38 +5,49 @@ import (
 	"time"
 )
 
-func TestParser(t *testing.T) {
-	kvStore := make(map[string]string)
-	setEnv := func(vars map[string]string) {
-		for k, v := range vars {
-			kvStore[k] = v
-		}
-	}
+type testEnv struct {
+	kvStore map[string]string
+}
 
-	cleanEnv := func() {
-		kvStore = make(map[string]string)
+func newTestEnv() *testEnv {
+	return &testEnv{
+		kvStore: make(map[string]string),
 	}
+}
 
-	getenv := func(key string) string {
-		return kvStore[key]
+func (e *testEnv) setEnv(vars map[string]string) {
+	for k, v := range vars {
+		e.kvStore[k] = v
 	}
+}
+
+func (e *testEnv) getenv(key string) string {
+	return e.kvStore[key]
+}
+
+func TestLoader(t *testing.T) {
+	t.Parallel()
 
 	t.Run("string validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
 		type StrConf struct {
 			DbHost       string `env:"DB_HOST" required:"T"`
 			DatabaseName string `env:"DATABASE_NAME" default:"0"`
 			Password     string `env:"PASSWORD"`
 		}
 
-		cfg, err := LoadConfig(getenv, &StrConf{})
+		cfg := &StrConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
 		if err == nil {
 			t.Error("expected error for missing required string, got nil")
 		}
 
-		setEnv(map[string]string{"DB_HOST": "localhost"})
-		t.Cleanup(cleanEnv)
+		env.setEnv(map[string]string{"DB_HOST": "localhost"})
 
-		cfg, err = LoadConfig(getenv, &StrConf{})
+		err = loader.Parse(cfg)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -50,22 +61,50 @@ func TestParser(t *testing.T) {
 			t.Errorf("expected optional variable PASSWORD to be '', got %v", cfg.Password)
 		}
 
-		setEnv(map[string]string{"DATABASE_NAME": "QUEUEBiTE"})
-		cfg, err = LoadConfig(getenv, &StrConf{})
+		env.setEnv(map[string]string{"DATABASE_NAME": "QUEUEBiTE"})
+		err = loader.Parse(cfg)
 		if cfg.DatabaseName != "QUEUEBiTE" {
 			t.Errorf("expected DATABASE_NAME to be its override value 'QUEUEBiTE', got %v", cfg.DatabaseName)
 		}
 	})
 
 	t.Run("int validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
 		type IntConf struct {
 			ServerPort int `env:"SERVER_PORT"`
 			RedisPort  int `env:"REDIS_PORT" default:"6379"`
 		}
-		setEnv(map[string]string{"SERVER_PORT": "55688"})
-		t.Cleanup(cleanEnv)
+		env.setEnv(map[string]string{"SERVER_PORT": "55688"})
 
-		cfg, err := LoadConfig(getenv, &IntConf{})
+		cfg := &IntConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if cfg.ServerPort != 55688 {
+			t.Errorf("expected SERVER_PORT to be `55688` from the env var, got %v", cfg.ServerPort)
+		}
+		if cfg.RedisPort != 6379 {
+			t.Errorf("expected REDIS_PORT to be its default value `6379`, got %v", cfg.RedisPort)
+		}
+	})
+
+	t.Run("int validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
+		type IntConf struct {
+			ServerPort int `env:"SERVER_PORT"`
+			RedisPort  int `env:"REDIS_PORT" default:"6379"`
+		}
+		env.setEnv(map[string]string{"SERVER_PORT": "55688"})
+
+		cfg := &IntConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -78,13 +117,17 @@ func TestParser(t *testing.T) {
 	})
 
 	t.Run("float validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
 		type FloatConf struct {
 			Pi float64 `env:"PI"`
 		}
-		setEnv(map[string]string{"PI": "3.14159"})
-		t.Cleanup(cleanEnv)
+		env.setEnv(map[string]string{"PI": "3.14159"})
 
-		cfg, err := LoadConfig(getenv, &FloatConf{})
+		cfg := &FloatConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -94,13 +137,17 @@ func TestParser(t *testing.T) {
 	})
 
 	t.Run("bool validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
 		type BoolConf struct {
 			BoolVal bool `env:"BOOL_V"`
 		}
-		setEnv(map[string]string{"BOOL_V": "T"})
-		t.Cleanup(cleanEnv)
+		env.setEnv(map[string]string{"BOOL_V": "T"})
 
-		cfg, err := LoadConfig(getenv, &BoolConf{})
+		cfg := &BoolConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -111,14 +158,18 @@ func TestParser(t *testing.T) {
 	})
 
 	t.Run("duration validation", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnv()
+
 		type DurationConf struct {
 			HealthCheckDuration time.Duration `env:"HEALTH_CHECK_DURATION"`
 			ShutdownTimeout     time.Duration `env:"SHUTDOWN_TIMEOUT" default:"5s"`
 		}
-		setEnv(map[string]string{"HEALTH_CHECK_DURATION": "5s"})
-		t.Cleanup(cleanEnv)
+		env.setEnv(map[string]string{"HEALTH_CHECK_DURATION": "5s"})
 
-		cfg, err := LoadConfig(getenv, &DurationConf{})
+		cfg := &DurationConf{}
+		loader := NewEnvLoader(WithEnvSource(env.getenv))
+		err := loader.Parse(cfg)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -130,4 +181,5 @@ func TestParser(t *testing.T) {
 			t.Errorf("expected SHUTDOWN_TIMEOUT to be its default value `5s`, got %v", cfg.ShutdownTimeout)
 		}
 	})
+
 }

@@ -1,12 +1,11 @@
-package env
+package parser
 
 import "reflect"
 
 type StringParser struct{}
 
-func (p *StringParser) Parse(value string, field reflect.Value) error {
-	field.SetString(value)
-	return nil
+func (p *StringParser) Parse(value string) (any, error) {
+	return value, nil
 }
 
 func (p *StringParser) Type() reflect.Type {

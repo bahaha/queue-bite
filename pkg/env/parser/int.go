@@ -1,4 +1,4 @@
-package env
+package parser
 
 import (
 	"reflect"
@@ -7,14 +7,13 @@ import (
 
 type IntParser struct{}
 
-func (p *IntParser) Parse(value string, field reflect.Value) error {
+func (p *IntParser) Parse(value string) (any, error) {
 	v, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	field.SetInt(v)
-	return nil
+	return int(v), nil
 }
 
 func (p *IntParser) Type() reflect.Type {

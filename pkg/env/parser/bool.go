@@ -1,4 +1,4 @@
-package env
+package parser
 
 import (
 	"reflect"
@@ -7,14 +7,9 @@ import (
 
 type BoolParser struct{}
 
-func (p *BoolParser) Parse(value string, field reflect.Value) error {
+func (p *BoolParser) Parse(value string) (any, error) {
 	v, err := strconv.ParseBool(value)
-	if err != nil {
-		return err
-	}
-
-	field.SetBool(v)
-	return nil
+	return v, err
 }
 
 func (p *BoolParser) Type() reflect.Type {

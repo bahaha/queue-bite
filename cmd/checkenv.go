@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"queue-bite/internal/config"
-	_ "queue-bite/pkg/utils/env/autoload"
+	_ "queue-bite/pkg/env/autoload"
 )
 
 func main() {
