@@ -31,6 +31,11 @@ func (p *inputProps) WithError(error bool) *inputProps {
 	return p
 }
 
+func (p *inputProps) WithClass(class string) *inputProps {
+	p.Class = class
+	return p
+}
+
 type InputVariants struct {
 	Base     string
 	HasError string
@@ -41,6 +46,27 @@ var defaultInputStyles = InputVariants{
 	HasError: "ring-2 ring-offset-2 ring-destructive",
 }
 
+// NewInput generate Templ attributes for an input based on the props.
+// It handles both standalone inputs and form-connected inputs automatically.
+// When connected to a form item, it will
+//   - Auto-bind form item ID, name, and value
+//   - Sync error states with the form validation of form model
+//
+// For standalone usage:
+//
+//	 <input type="text"
+//			placeholder="Enter text"
+//			{ui.NewInput(ui.InputProps().WithError(hasError))...}
+//	 />
+//
+// For form-connected usage:
+//
+//	 @form.FormItem(form.NewFormItemProps().WithFormItem(formData.Name)) {
+//		   <input type="text"
+//			      placeholder="Enter text"
+//	              {ui.NewInput(ui.InputProps().WithinContext(ctx, formData.Name.ID))...}
+//		    />
+//	 }
 func NewInput(props *inputProps) templ.Attributes {
 	attrs := templ.Attributes{}
 	hasError := props.HasError

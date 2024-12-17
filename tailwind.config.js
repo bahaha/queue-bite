@@ -4,6 +4,7 @@ module.exports = {
         "./internal/layouts/*.{html,templ}",
         "./internal/features/**/views/*.{html,templ}",
         "./pkg/components/**/*.{html,templ,go}",
+        "!./pkg/components/**/*_test.go",
     ],
     darkMode: ["class"],
     theme: {
