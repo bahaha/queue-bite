@@ -41,9 +41,9 @@ func CopyFormValueFromPayload(form interface{}, payload interface{}) {
 		payloadStruct = payloadStruct.Elem()
 	}
 
-	for i := 0; i < form.NumField(); i++ {
-		formField := form.Field(i)
-		fieldName := form.Type().Field(i).Name
+	for i := 0; i < formStruct.NumField(); i++ {
+		formField := formStruct.Field(i)
+		fieldName := formStruct.Type().Field(i).Name
 
 		if !formField.IsValid() ||
 			formField.Kind() != reflect.Ptr ||
@@ -52,7 +52,7 @@ func CopyFormValueFromPayload(form interface{}, payload interface{}) {
 			continue
 		}
 
-		if payload := payload.FieldByName(fieldName); payload.IsValid() {
+		if payload := payloadStruct.FieldByName(fieldName); payload.IsValid() {
 			setFormField(formField.Elem(), "Value", payload.Interface())
 		}
 	}
