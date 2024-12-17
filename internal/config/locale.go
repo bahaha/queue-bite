@@ -12,10 +12,44 @@ import (
 )
 
 type LocaleTranslators struct {
-	Validator   *v.Validate
+	// Validator is a configured instance which cached structs
+	Validator *v.Validate
+
+	// Translators provides translation capabilities for validation messages
 	Translators *ut.UniversalTranslator
 }
 
+// NewLocaleTranslations creates a new LocaleTranslators instance with support for
+// English, Traditional Chinese (Taiwan), and Japanese languages.
+// It configures both validation and translation for these locales.
+//
+// Usage example:
+//
+//	// Initialize translations
+//	locales := config.NewLocaleTranslations()
+//
+//	// Validate a struct
+//	type User struct {
+//	    Name  string `validate:"required"`
+//	    Email string `validate:"required,email"`
+//	}
+//
+//	user := User{Name: "", Email: "invalid"}
+//	err := locales.Validator.Struct(user)
+//
+//	// Get translator for user's language
+//	if trans, ok := locales.Translators.GetTranslator("ja"); ok {
+//	    // Translate validation errors
+//	    for _, err := range err.(validator.ValidationErrors) {
+//	        fmt.Println(err.Translate(trans))
+//	        // Output in Japanese: "名前は必須フィールドです"
+//	    }
+//	}
+//
+// Supported languages:
+//   - English (en) / fallback lang
+//   - Japanese (ja)
+//   - Traditional Chinese (zh_Hant_TW)
 func NewLocaleTranslations() *LocaleTranslators {
 	validator := v.New(v.WithRequiredStructEnabled())
 	en := en.New()
