@@ -46,6 +46,27 @@ var defaultLabelStyles = styleVariants{
 	Required: "after:content-['*'] after:ml-0.5 after:text-destructive",
 }
 
+// NewLabel generates Templ attributes for a label based on the props.
+// It handles both standalone labels and form-connected labels automatically.
+// With form-connected label, it will auto-bind form item ID to label's for attributes
+//
+// For standalone usage:
+//
+//	<label for="specific_id"
+//	       {ui.NewLabel(ui.LabelProps().WithRequired(true))...}
+//	>
+//	    Username
+//	</label>
+//
+// For form-connected usage:
+//
+//	 @form.FormItem(form.NewFormItemProps().WithFormItem(formData.Name)) {
+//	     <label
+//	         {ui.NewLabel(ui.LabelProps().WithRequired(true))...}
+//	     >
+//	         Username
+//	     </label>
+//	}
 func NewLabel(props *labelProps) templ.Attributes {
 	attrs := templ.Attributes{
 		"class": utils.Cn(
