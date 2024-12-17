@@ -32,6 +32,7 @@ templ JoinForm(vw *JoinFormData) {
 			</label>
 			<input
 				placeholder="Enter your name"
+                required
 				{ ui.NewInput(ui.InputProps().
                         WithinContext(ctx, vw.PartyName.ID))... }
 			/>

@@ -20,6 +20,20 @@ func newWaitlistHandler() *waitlistHandler {
 	return &waitlistHandler{}
 }
 
+// Handle form submission for joining a restaurant's waitlist.
+// The handler performs the following steps:
+//  1. Receives form data for party registration
+//  2. Validates required party information
+//  3. On validation failure, re-displays form with error message in user's language
+//  4. On success, returns confirmation with party's position in line
+//
+// Request Payload (Form Data):
+//   - PartyName: requried
+//
+// Flow:
+//
+//	Browser -> Submit Form -> Validate ─┬─ Invalid ─> Show Errors
+//	                                    └─ Valid ───> Show Position
 func (h *waitlistHandler) JoinWaitlist(logger log.Logger, validate *validator.Validate, uni *ut.UniversalTranslator) http.HandlerFunc {
 	formDecoder := form.NewDecoder()
 	type JoinWaitlistRequest struct {
@@ -51,5 +65,6 @@ func (h *waitlistHandler) JoinWaitlist(logger log.Logger, validate *validator.Va
 		}
 
 		logger.LogInfo(FEAT_WAITLIST, "valid join waitlist request", "form", joinWaitlist)
+		// return a success partial page with the order of the party
 	}
 }
