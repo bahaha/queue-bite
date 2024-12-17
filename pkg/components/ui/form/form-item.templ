@@ -1,5 +1,30 @@
 package form
 
+// FormItem automatically manages the relationship between labels, inputs,
+// and their error states through context propagation.
+//
+// Basic usage:
+//
+//  @form.FormItem(form.NewFormItemProps()) {
+//      <label>Username</label>
+//      <input type="text" />
+//  }
+//
+// With form context and validation:
+//
+//  @form.FormItem(form.NewFormItemProps().WithFormItem(formData.Username)) {
+//      <label {ui.NewLabel(ui.LabelProps().
+//          WithinContext(ctx, formData.Username.ID).
+//          WithRequired(true))...}
+//      >
+//          Username
+//      </label>
+//      <input {ui.NewInput(ui.InputProps().
+//          WithinContext(ctx, formData.Username.ID))...}
+//          type="text"
+//          placeholder="Enter username"
+//      />
+//  }
 templ FormItem(props *FormItemProps) {
 	{{
 	if props.Ctx != nil {
