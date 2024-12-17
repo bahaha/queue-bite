@@ -1,9 +1,20 @@
 package utils
 
-import "strings"
+import (
+	"strings"
+
+	tw "github.com/Oudwins/tailwind-merge-go"
+)
 
 func Cn(classes ...string) string {
-	return strings.Join(filterEmptyClasses(classes), " ")
+	return tw.Merge(strings.Join(filterEmptyClasses(classes), " "))
+}
+
+func AppendClass(class string, active bool) string {
+	if active {
+		return class
+	}
+	return ""
 }
 
 func filterEmptyClasses(classes []string) []string {

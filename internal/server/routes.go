@@ -29,7 +29,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.Route("/waitlist", func(r chi.Router) {
 		handler := waitlist.NewWaitlistHandlers()
-		r.Get("/", handler.Vitrine.GetVitrineDisplay)
+		r.Get("/", handler.Vitrine.GetVitrineDisplay())
+		r.Post("/join", handler.Waitlist.JoinWaitlist(s.logger, s.validate, s.translators))
 	})
 
 	return r

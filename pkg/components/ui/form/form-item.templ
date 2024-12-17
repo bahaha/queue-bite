@@ -1,0 +1,15 @@
+package form
+
+templ FormItem(props *FormItemProps) {
+	{{
+	if props.Ctx != nil {
+		ctx = AttachFormItemContext(ctx, props.Ctx)
+	}
+	}}
+	<div class="space-y-2" data-role="form-item">
+		{ children... }
+		if props.Ctx != nil && props.Ctx.Invalid {
+			<div class="text-sm text-destructive mt-1">{ props.Ctx.ErrorMessage } </div>
+		}
+	</div>
+}

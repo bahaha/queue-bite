@@ -8,12 +8,16 @@ import (
 	view "queue-bite/internal/features/waitlist/views"
 )
 
-type WaitlistVitrineHandler struct{}
+type waitlistVitrineHandler struct{}
 
-func newWaitlistVitrineHandler() *WaitlistVitrineHandler {
-	return &WaitlistVitrineHandler{}
+func newWaitlistVitrineHandler() *waitlistVitrineHandler {
+	return &waitlistVitrineHandler{}
 }
 
-func (h *WaitlistVitrineHandler) GetVitrineDisplay(w http.ResponseWriter, r *http.Request) {
-	templ.Handler(view.Virtrine()).ServeHTTP(w, r)
+func (h *waitlistVitrineHandler) GetVitrineDisplay() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		templ.Handler(view.Vitrine(&view.VitrinePageData{
+			Form: view.NewJoinFormData(),
+		})).ServeHTTP(w, r)
+	}
 }

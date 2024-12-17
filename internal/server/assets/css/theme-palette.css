@@ -54,13 +54,11 @@
 }
 
 * {
-  @apply border-border;
+    border-color: var(--border);
 }
 
 body {
-  @apply bg-background text-foreground;
-  font-feature-settings:
-    "rlig" 1,
-    "calt" 1;
+    background: var(--background); 
+    color: var(--foreground); 
+    font-feature-settings: "rlig" 1, "calt" 1;
 }
-

@@ -1,11 +1,17 @@
 package waitlist
 
-type WaitlistHandler struct {
-	Vitrine *WaitlistVitrineHandler
+const (
+	FEAT_WAITLIST = "feat/waitlist"
+)
+
+type WaitlistHandlers struct {
+	Waitlist *waitlistHandler
+	Vitrine  *waitlistVitrineHandler
 }
 
-func NewWaitlistHandlers() *WaitlistHandler {
-	return &WaitlistHandler{
-		Vitrine: newWaitlistVitrineHandler(),
+func NewWaitlistHandlers() *WaitlistHandlers {
+	return &WaitlistHandlers{
+		Waitlist: newWaitlistHandler(),
+		Vitrine:  newWaitlistVitrineHandler(),
 	}
 }

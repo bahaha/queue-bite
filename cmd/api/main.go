@@ -37,8 +37,9 @@ func run(
 		return err
 	}
 	logger := log.NewZerologLogger(stdout, cfg.Dev)
+	localeTrans := config.NewLocaleTranslations()
 
-	server := server.NewServer(cfg, logger)
+	server := server.NewServer(cfg, logger, localeTrans.Validator, localeTrans.Translators)
 	serverError := make(chan error, 1)
 
 	go func() {

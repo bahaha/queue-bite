@@ -5,22 +5,34 @@ import (
 	"net/http"
 	"time"
 
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
+
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
 	"queue-bite/internal/platform"
 )
 
 type Server struct {
-	cfg    *config.Config
-	logger log.Logger
+	cfg         *config.Config
+	logger      log.Logger
+	validate    *validator.Validate
+	translators *ut.UniversalTranslator
 
 	redis *platform.RedisComponent
 }
 
-func NewServer(cfg *config.Config, logger log.Logger) *http.Server {
+func NewServer(
+	cfg *config.Config,
+	logger log.Logger,
+	validate *validator.Validate,
+	translators *ut.UniversalTranslator,
+) *http.Server {
 	NewServer := &Server{
-		cfg:    cfg,
-		logger: logger,
+		cfg:         cfg,
+		logger:      logger,
+		validate:    validate,
+		translators: translators,
 
 		redis: platform.NewRedis(cfg, logger),
 	}

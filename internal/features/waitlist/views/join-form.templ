@@ -1,0 +1,47 @@
+package waitlist
+
+import (
+	"queue-bite/pkg/components/ui"
+	"queue-bite/pkg/components/ui/form"
+	f "queue-bite/pkg/form"
+	"queue-bite/pkg/utils"
+)
+
+type JoinFormData struct {
+	PartyName *f.FormItemContext
+}
+
+func NewJoinFormData() *JoinFormData {
+	return &JoinFormData{
+		PartyName: &f.FormItemContext{
+			ID:   utils.GenerateUID(),
+			Name: "PartyName",
+		},
+	}
+}
+
+templ JoinForm(vw *JoinFormData) {
+	<form hx-post="/waitlist/join" hx-target="this" class="space-y-8">
+		@form.FormItem(form.NewFormItemProps().WithFormItem(vw.PartyName)) {
+			<label
+				{ ui.NewLabel(ui.LabelProps().
+                        WithinContext(ctx, vw.PartyName.ID).
+                        WithRequired(true))... }
+			>
+				Name
+			</label>
+			<input
+				placeholder="Enter your name"
+				{ ui.NewInput(ui.InputProps().
+                        WithinContext(ctx, vw.PartyName.ID))... }
+			/>
+		}
+		<button
+			{ ui.NewButton(ui.ButtonProps().
+                    WithClass("w-full").
+                    WithSize(ui.Button.Sizes.Large))... }
+		>
+			Join Waitlist
+		</button>
+	</form>
+}
