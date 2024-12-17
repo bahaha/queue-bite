@@ -34,10 +34,23 @@ func DecodeBody[T any](r *http.Response) (T, error) {
 	return v, nil
 }
 
+// CollectAcceptLanguages parses the Accept-Language header from a HTTP request
+// and returns a slice of language tags sorted by their quality values.
+//
+// The function processes the Accept-Language header according to RFC 2616,
+// handling language tags and their q-values.
+//
+// It returns language tags ordered from highest to lowest preference.
+//
+// Example:
+//
+//	// Accept-Language: en-US,ja;q=0.9,zh_TW;q=0.5
+//	langs := CollectAcceptLanguages(r)
+//	// langs = []string{"en-US", "ja", "zh_TW"}
 func CollectAcceptLanguages(r *http.Request) []string {
 	acceptLanguage := r.Header.Get("Accept-Language")
 	if acceptLanguage == "" {
-		return nil
+		return []string{"*"}
 	}
 
 	parts := strings.Split(acceptLanguage, ",")
