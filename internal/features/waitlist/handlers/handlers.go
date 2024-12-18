@@ -1,7 +1,12 @@
 package waitlist
 
+import (
+	log "queue-bite/internal/config/logger"
+	"queue-bite/internal/platform"
+)
+
 const (
-	FEAT_WAITLIST = "feat/waitlist"
+	WAITLIST = "/waitlist"
 )
 
 type WaitlistHandlers struct {
@@ -9,9 +14,9 @@ type WaitlistHandlers struct {
 	Vitrine  *waitlistVitrineHandler
 }
 
-func NewWaitlistHandlers() *WaitlistHandlers {
+func NewWaitlistHandlers(logger log.Logger, redis *platform.RedisComponent) *WaitlistHandlers {
 	return &WaitlistHandlers{
-		Waitlist: newWaitlistHandler(),
+		Waitlist: newWaitlistHandler(logger, redis.Client),
 		Vitrine:  newWaitlistVitrineHandler(),
 	}
 }

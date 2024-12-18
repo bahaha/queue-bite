@@ -7,6 +7,7 @@ import (
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
+	"queue-bite/internal/features/waitlist/services"
 	view "queue-bite/internal/features/waitlist/views"
 	"queue-bite/pkg/session"
 )
@@ -24,20 +25,18 @@ func (h *waitlistVitrineHandler) GetVitrineDisplay(
 ) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		queuedParty := &QueuedParty{}
+		queuedParty := &services.QueuedParty{}
 		if err := cookieManager.GetCookie(r, &cookieCfgs.QueuedPartyCookie, queuedParty); err != nil {
+			logger.LogErr(WAITLIST, err, "party is not in queued")
 			templ.Handler(view.Vitrine(&view.VitrinePageData{
 				Form: view.NewJoinFormData(),
 			})).ServeHTTP(w, r)
 			return
 		}
 
-		logger.LogDebug(FEAT_WAITLIST, "found queued party from cookie", "queued party", queuedParty)
+		logger.LogDebug(WAITLIST, "found queued party from cookie", "queued party ID", queuedParty.ID)
 		templ.Handler(view.Vitrine(&view.VitrinePageData{
-			QueueEntry: &view.QueueEntry{
-				QueueOrder: 5,
-				PartyName:  queuedParty.Name,
-			},
+			QueuedPartyProps: &view.QueuedPartyProps{},
 		})).ServeHTTP(w, r)
 	}
 }

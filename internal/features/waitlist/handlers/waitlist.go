@@ -7,24 +7,29 @@ import (
 	"github.com/go-playground/form/v4"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/jinzhu/copier"
+	"github.com/redis/go-redis/v9"
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
+	domain "queue-bite/internal/features/waitlist"
+	"queue-bite/internal/features/waitlist/services"
 	view "queue-bite/internal/features/waitlist/views"
 	f "queue-bite/pkg/form"
 	"queue-bite/pkg/session"
 	"queue-bite/pkg/utils"
 )
 
-type waitlistHandler struct{}
-
-func newWaitlistHandler() *waitlistHandler {
-	return &waitlistHandler{}
+type waitlistHandler struct {
+	service services.WaitlistService
 }
 
-type QueuedParty struct {
-	ID   string
-	Name string
+func newWaitlistHandler(logger log.Logger, client *redis.Client) *waitlistHandler {
+	waitTimeEstimator := services.NewLinearWaitTimeEstimator()
+
+	return &waitlistHandler{
+		service: services.NewRedisWaitlistService(logger, client, waitTimeEstimator),
+	}
 }
 
 // Handle form submission for joining a restaurant's waitlist.
@@ -51,14 +56,12 @@ func (h *waitlistHandler) JoinWaitlist(
 	formDecoder := form.NewDecoder()
 	type JoinWaitlistRequest struct {
 		PartyName string `validate:"required"`
+		PartySize int    `validate:"required,min=1"`
 	}
 
-	var setQueuedPartyCookie func(w http.ResponseWriter, PartyName string)
-	setQueuedPartyCookie = func(w http.ResponseWriter, partyName string) {
-		cookieManager.SetCookie(w, cookieCfgs.QueuedPartyCookie, &QueuedParty{
-			ID:   utils.GenerateUID(),
-			Name: partyName,
-		})
+	var setQueuedPartyCookie func(w http.ResponseWriter, queued *services.QueuedParty)
+	setQueuedPartyCookie = func(w http.ResponseWriter, queued *services.QueuedParty) {
+		cookieManager.SetCookie(w, cookieCfgs.QueuedPartyCookie, &queued)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -67,26 +70,34 @@ func (h *waitlistHandler) JoinWaitlist(
 
 		var joinWaitlist JoinWaitlistRequest
 		if err := formDecoder.Decode(&joinWaitlist, r.Form); err != nil {
-			logger.LogErr(FEAT_WAITLIST, err, "Could not decode request form data")
+			logger.LogErr(WAITLIST, err, "Could not decode request form data")
 			joinWaitlistForm := view.NewJoinFormData()
 			templ.Handler(view.JoinForm(joinWaitlistForm)).ServeHTTP(w, r)
 			return
 		}
 
+		joinWaitlist.PartySize = 2
 		if err := validate.Struct(joinWaitlist); err != nil {
 			errs := err.(validator.ValidationErrors)
 
 			joinWaitlistForm := view.NewJoinFormData()
 			f.CopyFormValueFromPayload(joinWaitlistForm, joinWaitlist)
 			f.CollectErrorsToForm(trans, joinWaitlistForm, errs)
-			logger.LogErr(FEAT_WAITLIST, err, "Invalid join waitlist request")
+			logger.LogErr(WAITLIST, err, "Invalid join waitlist request")
 
 			templ.Handler(view.JoinForm(joinWaitlistForm)).ServeHTTP(w, r)
 			return
 		}
 
-		logger.LogDebug(FEAT_WAITLIST, "valid join waitlist request", "form", joinWaitlist)
+		logger.LogDebug(WAITLIST, "valid join waitlist request", "form", joinWaitlist)
 		// return a success partial page with the order of the party
-		setQueuedPartyCookie(w, joinWaitlist.PartyName)
+
+		party := domain.NewPartyToJoin(joinWaitlist.PartyName, joinWaitlist.PartySize)
+		queuedParty, _ := h.service.JoinQueue(r.Context(), party)
+		logger.LogDebug(WAITLIST, "join waitlist success", "queued party", queuedParty)
+		setQueuedPartyCookie(w, queuedParty)
+		vm := &view.QueuedPartyProps{}
+		copier.Copy(vm, queuedParty)
+		templ.Handler(view.QueuedParty(vm)).ServeHTTP(w, r)
 	}
 }

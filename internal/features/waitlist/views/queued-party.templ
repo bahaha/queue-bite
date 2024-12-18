@@ -2,16 +2,16 @@ package waitlist
 
 import "strconv"
 
-type QueueEntry struct {
-	QueueOrder      int
-	PartyName       string
-	PartySize       int
+type QueuedPartyProps struct {
+	QueuePosition   int
+	PartyName       string `copier:"Name"`
+	PartySize       int    `copier:"Size"`
 	ReadyForSeating bool
 }
 
-templ QueueEntryCard(props *QueueEntry) {
+templ QueuedParty(props *QueuedPartyProps) {
 	<ul>
-		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.QueueOrder) }</div></li>
+		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.QueuePosition) }</div></li>
 		<li><div>PartyName</div><div>{ props.PartyName }</div></li>
 		<li><div>PartySize</div><div>{ strconv.Itoa(props.PartySize) }</div></li>
 		if props.ReadyForSeating {

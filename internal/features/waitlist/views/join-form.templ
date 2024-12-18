@@ -14,7 +14,7 @@ type JoinFormData struct {
 func NewJoinFormData() *JoinFormData {
 	return &JoinFormData{
 		PartyName: &f.FormItemContext{
-			ID:   utils.GenerateUID(),
+			ID:   utils.GenerateID(),
 			Name: "PartyName",
 		},
 	}
@@ -32,7 +32,7 @@ templ JoinForm(vw *JoinFormData) {
 			</label>
 			<input
 				placeholder="Enter your name"
-                required
+				required
 				{ ui.NewInput(ui.InputProps().
                         WithinContext(ctx, vw.PartyName.ID))... }
 			/>
