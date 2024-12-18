@@ -1,0 +1,21 @@
+package waitlist
+
+import "strconv"
+
+type QueueEntry struct {
+	QueueOrder      int
+	PartyName       string
+	PartySize       int
+	ReadyForSeating bool
+}
+
+templ QueueEntryCard(props *QueueEntry) {
+	<ul>
+		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.QueueOrder) }</div></li>
+		<li><div>PartyName</div><div>{ props.PartyName }</div></li>
+		<li><div>PartySize</div><div>{ strconv.Itoa(props.PartySize) }</div></li>
+		if props.ReadyForSeating {
+			<li><div>ReadyForSeating</div><div>Check-in</div></li>
+		}
+	</ul>
+}

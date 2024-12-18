@@ -33,7 +33,13 @@ run:
 	@APP_ENV=dev go run cmd/api/main.go
 
 redis-run:
-	@docker-compose up redis_bp -d
+	@if command -v docker compose >/dev/null 2>&1; then \
+		docker compose up redis_bp -d; \
+	else \
+		echo "Falling back to Docker Compose V1"; \
+		docker-compose up redis_bp -d; \
+	fi
+
 
 # Create DB container
 docker-run:

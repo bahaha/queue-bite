@@ -3,11 +3,16 @@ package waitlist
 import layout "queue-bite/internal/layouts"
 
 type VitrinePageData struct {
-	Form *JoinFormData
+	QueueEntry *QueueEntry
+	Form       *JoinFormData
 }
 
 templ Vitrine(page *VitrinePageData) {
 	@layout.Base() {
-		@JoinForm(page.Form)
+		if page.QueueEntry == nil {
+			@JoinForm(page.Form)
+		} else {
+			@QueueEntryCard(page.QueueEntry)
+		}
 	}
 }
