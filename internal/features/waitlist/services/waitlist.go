@@ -9,14 +9,14 @@ import (
 
 type QueuedParty struct {
 	domain.Party
-	QueuePosition int
-	JoinedAt      time.Time
-	EstimatedWait time.Duration
+	QueuePosition        int
+	JoinedAt             time.Time
+	EstimatedServiceTime time.Duration
 }
 
 type QueueStatus struct {
-	TotalParties  int
-	EstimatedWait time.Duration
+	TotalParties         int
+	EstimatedServiceTime time.Duration
 }
 
 type WaitlistService interface {
@@ -29,8 +29,8 @@ type WaitlistService interface {
 	// LeaveQueue(partyID string) error
 }
 
-type WaitTimeEstimator interface {
-	EstimateWaitTime(ctx context.Context, payty *domain.Party) (time.Duration, error)
+type ServiceTimeEstimator interface {
+	EstimateServiceTime(ctx context.Context, payty *domain.Party) (time.Duration, error)
 }
 
 const (

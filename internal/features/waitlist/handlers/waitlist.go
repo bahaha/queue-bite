@@ -25,10 +25,10 @@ type waitlistHandler struct {
 }
 
 func newWaitlistHandler(logger log.Logger, client *redis.Client) *waitlistHandler {
-	waitTimeEstimator := services.NewLinearWaitTimeEstimator()
+	serviceTimeEstimator := services.NewLinearWaitTimeEstimator()
 
 	return &waitlistHandler{
-		service: services.NewRedisWaitlistService(logger, client, waitTimeEstimator),
+		service: services.NewRedisWaitlistService(logger, client, serviceTimeEstimator),
 	}
 }
 

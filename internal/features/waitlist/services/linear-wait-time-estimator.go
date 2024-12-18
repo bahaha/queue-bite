@@ -7,13 +7,13 @@ import (
 	domain "queue-bite/internal/features/waitlist"
 )
 
-type LinearWaitTimeEstimator struct {
+type LinearServiceTimeEstimator struct {
 }
 
-func NewLinearWaitTimeEstimator() *LinearWaitTimeEstimator {
-	return &LinearWaitTimeEstimator{}
+func NewLinearWaitTimeEstimator() *LinearServiceTimeEstimator {
+	return &LinearServiceTimeEstimator{}
 }
 
-func (e *LinearWaitTimeEstimator) EstimateWaitTime(ctx context.Context, payty *domain.Party) (time.Duration, error) {
+func (e *LinearServiceTimeEstimator) EstimateServiceTime(ctx context.Context, payty *domain.Party) (time.Duration, error) {
 	return 5 * time.Minute, nil
 }

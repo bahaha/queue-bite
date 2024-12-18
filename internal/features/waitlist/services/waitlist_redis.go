@@ -19,10 +19,10 @@ const (
 )
 
 type redisWaitlistService struct {
-	logger            log.Logger
-	client            *redis.Client
-	waitTimeEstimator WaitTimeEstimator
-	waitTTL           time.Duration
+	logger               log.Logger
+	client               *redis.Client
+	serviceTimeEstimator ServiceTimeEstimator
+	waitTTL              time.Duration
 
 	// atomic Lua script operations
 	joinScript *redis.Script
@@ -30,12 +30,12 @@ type redisWaitlistService struct {
 	generateUID func() ulid.ULID
 }
 
-func NewRedisWaitlistService(logger log.Logger, client *redis.Client, waitTimeEstimator WaitTimeEstimator) WaitlistService {
+func NewRedisWaitlistService(logger log.Logger, client *redis.Client, serviceTimeEstimator ServiceTimeEstimator) WaitlistService {
 	return &redisWaitlistService{
-		logger:            logger,
-		client:            client,
-		waitTimeEstimator: waitTimeEstimator,
-		waitTTL:           24 * time.Hour,
+		logger:               logger,
+		client:               client,
+		serviceTimeEstimator: serviceTimeEstimator,
+		waitTTL:              24 * time.Hour,
 
 		joinScript:  redis.NewScript(joinWaitlistScript),
 		generateUID: utils.GenerateUID,
@@ -43,12 +43,12 @@ func NewRedisWaitlistService(logger log.Logger, client *redis.Client, waitTimeEs
 }
 
 type QueuedEntity struct {
-	ID            string        `redis:"ID"`
-	Name          string        `redis:"Name"`
-	Size          int           `redis:"Size"`
-	QueuePosition int           `redis:"-"`
-	JoinedAt      time.Time     `redis:"JoinedAt"`
-	EstimatedWait time.Duration `redis:"EstimatedWait"`
+	ID                   string        `redis:"ID"`
+	Name                 string        `redis:"Name"`
+	Size                 int           `redis:"Size"`
+	QueuePosition        int           `redis:"-"`
+	JoinedAt             time.Time     `redis:"JoinedAt"`
+	EstimatedServiceTime time.Duration `redis:"EstimatedServiceTime"`
 }
 
 const joinWaitlistScript = `
@@ -57,7 +57,7 @@ local party_detail_key = KEYS[2]
 local total_wait_prefixsum_key = KEYS[3]
 local party_wait_prefixsum_key = KEYS[4]
 local party_id = ARGV[1]
-local estimated_wait = ARGV[2]
+local estimated_service_time = ARGV[2]
 local join_score = ARGV[3]
 local ttl = ARGV[4]
 
@@ -68,7 +68,7 @@ redis.call('EXPIRE', waitlist_key, ttl)
 
 
 -- Increment total wait time and get new value
-local next_wait = redis.call('INCRBY', total_wait_prefixsum_key, estimated_wait)
+local next_wait = redis.call('INCRBY', total_wait_prefixsum_key, estimated_service_time)
 
 -- Set wait time prefix sum for this group with TTL
 redis.call('SET', party_wait_prefixsum_key, next_wait, 'EX', ttl)
@@ -93,7 +93,7 @@ return wait_entries_ahead
 //		    Name -> "CC"
 //		    Size -> "2"
 //		    JoinedAt -> "2023-12-19T15:00:00Z"
-//		    EstimatedWait -> "1800000000000"    // The total time remaining to wait for this party
+//		    EstimatedServiceTime -> "1800000000000"    // The total time remaining to wait for this party
 //
 //	 The Lua script will return the parties ahead of this new joining party, which is the order in the queue.
 func (s *redisWaitlistService) JoinQueue(ctx context.Context, party *domain.Party) (*QueuedParty, error) {
@@ -105,12 +105,12 @@ func (s *redisWaitlistService) JoinQueue(ctx context.Context, party *domain.Part
 	queued.ID = id
 	queued.JoinedAt = time.Now()
 	// TODO: timeout for estimate wait time for a party
-	waitTime, err := s.waitTimeEstimator.EstimateWaitTime(ctx, party)
+	waitTime, err := s.serviceTimeEstimator.EstimateServiceTime(ctx, party)
 	if err != nil {
 		s.logger.LogErr(WAIT_ESTIMATOR, err, "could not estimate wait time for party", "name", party.Name, "size", party.Size)
 		return nil, err
 	}
-	queued.EstimatedWait = waitTime
+	queued.EstimatedServiceTime = waitTime
 	s.client.HSet(ctx, s.getPartyDetailKey(queued.ID), queued)
 
 	joinKeys := []string{
@@ -122,7 +122,7 @@ func (s *redisWaitlistService) JoinQueue(ctx context.Context, party *domain.Part
 
 	joinArgs := []interface{}{
 		id,                          // local party_id = ARGV[1]
-		waitTime.Round(time.Second), // local estimated_wait = ARGV[2]
+		waitTime.Round(time.Second), // local estimated_service_time = ARGV[2]
 		uid.Time(),                  // local join_score = ARGV[3]
 		s.waitTTL,                   // local ttl = ARGV[4]
 	}

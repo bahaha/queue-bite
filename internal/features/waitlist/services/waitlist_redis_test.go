@@ -43,7 +43,7 @@ func TestJoinWaitlist(t *testing.T) {
 		service := NewRedisWaitlistService(
 			log.NewNoopLogger(),
 			client,
-			newFixedWaitTimeEstimator(5),
+			newFixedServiceTimeEstimator(5),
 		)
 		uid := utils.GenerateUID()
 		id := uid.String()
@@ -58,7 +58,7 @@ func TestJoinWaitlist(t *testing.T) {
 		queued, err := service.JoinQueue(context.Background(), party)
 		assert.NoError(t, err)
 		assert.Equal(t, id, queued.ID)
-		assert.Equal(t, 5*time.Minute, queued.EstimatedWait)
+		assert.Equal(t, 5*time.Minute, queued.EstimatedServiceTime)
 	})
 
 	t.Run("the second party into the queue", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestJoinWaitlist(t *testing.T) {
 		service := NewRedisWaitlistService(
 			log.NewNoopLogger(),
 			client,
-			newFixedWaitTimeEstimator(5),
+			newFixedServiceTimeEstimator(5),
 		)
 		ttl := service.(*redisWaitlistService).waitTTL
 		service.(*redisWaitlistService).generateUID = func() ulid.ULID {
@@ -83,16 +83,16 @@ func TestJoinWaitlist(t *testing.T) {
 	})
 }
 
-type fixedWaitTimeEstimator struct {
+type fixedServiceTimeEstimator struct {
 	consumeTime int
 }
 
-func newFixedWaitTimeEstimator(minutes int) *fixedWaitTimeEstimator {
-	return &fixedWaitTimeEstimator{
+func newFixedServiceTimeEstimator(minutes int) *fixedServiceTimeEstimator {
+	return &fixedServiceTimeEstimator{
 		consumeTime: minutes,
 	}
 }
 
-func (e *fixedWaitTimeEstimator) EstimateWaitTime(ctx context.Context, payty *domain.Party) (time.Duration, error) {
+func (e *fixedServiceTimeEstimator) EstimateServiceTime(ctx context.Context, payty *domain.Party) (time.Duration, error) {
 	return time.Duration(e.consumeTime) * time.Minute, nil
 }
