@@ -8,13 +8,17 @@ import (
 )
 
 type Config struct {
-	Dev    bool
+	Dev bool
+	// TODO: validate encryption key length by adding functionality with github.com/go-playground/validator/v10 in env module
+	CookieEncryptionKey string `env:"COOKIE_ENCRYPTION_KEY" required:"T"`
+
 	Server struct {
 		Host               string        `env:"SERVER_HOST" default:"localhost"`
 		Port               int           `env:"SERVER_PORT" default:"55666"`
 		ShutdownTimeout    time.Duration `env:"SERVER_SHUTDOWN_TIMEOUT_SECONDS" default:"5s"`
 		HealthCheckTimeout time.Duration `env:"HEALTH_CHECK_TIMEOUT" default:"5s"`
 	}
+
 	Redis struct {
 		Addr     string
 		Host     string `env:"WAITLIST_REDIS_HOST"`

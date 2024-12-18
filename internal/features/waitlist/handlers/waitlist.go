@@ -8,9 +8,11 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 
+	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
 	view "queue-bite/internal/features/waitlist/views"
 	f "queue-bite/pkg/form"
+	"queue-bite/pkg/session"
 	"queue-bite/pkg/utils"
 )
 
@@ -18,6 +20,11 @@ type waitlistHandler struct{}
 
 func newWaitlistHandler() *waitlistHandler {
 	return &waitlistHandler{}
+}
+
+type QueuedParty struct {
+	ID   string
+	Name string
 }
 
 // Handle form submission for joining a restaurant's waitlist.
@@ -34,10 +41,24 @@ func newWaitlistHandler() *waitlistHandler {
 //
 //	Browser -> Submit Form -> Validate ─┬─ Invalid ─> Show Errors
 //	                                    └─ Valid ───> Show Position
-func (h *waitlistHandler) JoinWaitlist(logger log.Logger, validate *validator.Validate, uni *ut.UniversalTranslator) http.HandlerFunc {
+func (h *waitlistHandler) JoinWaitlist(
+	logger log.Logger,
+	validate *validator.Validate,
+	uni *ut.UniversalTranslator,
+	cookieManager *session.CookieManager,
+	cookieCfgs *config.QueueBiteCookies,
+) http.HandlerFunc {
 	formDecoder := form.NewDecoder()
 	type JoinWaitlistRequest struct {
 		PartyName string `validate:"required"`
+	}
+
+	var setQueuedPartyCookie func(w http.ResponseWriter, PartyName string)
+	setQueuedPartyCookie = func(w http.ResponseWriter, partyName string) {
+		cookieManager.SetCookie(w, cookieCfgs.QueuedPartyCookie, &QueuedParty{
+			ID:   utils.GenerateUID(),
+			Name: partyName,
+		})
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +85,8 @@ func (h *waitlistHandler) JoinWaitlist(logger log.Logger, validate *validator.Va
 			return
 		}
 
-		logger.LogInfo(FEAT_WAITLIST, "valid join waitlist request", "form", joinWaitlist)
+		logger.LogDebug(FEAT_WAITLIST, "valid join waitlist request", "form", joinWaitlist)
 		// return a success partial page with the order of the party
+		setQueuedPartyCookie(w, joinWaitlist.PartyName)
 	}
 }

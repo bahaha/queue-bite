@@ -11,13 +11,16 @@ import (
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
 	"queue-bite/internal/platform"
+	"queue-bite/pkg/session"
 )
 
 type Server struct {
-	cfg         *config.Config
-	logger      log.Logger
-	validate    *validator.Validate
-	translators *ut.UniversalTranslator
+	cfg           *config.Config
+	logger        log.Logger
+	validate      *validator.Validate
+	translators   *ut.UniversalTranslator
+	cookieManager *session.CookieManager
+	cookieCfgs    *config.QueueBiteCookies
 
 	redis *platform.RedisComponent
 }
@@ -27,12 +30,16 @@ func NewServer(
 	logger log.Logger,
 	validate *validator.Validate,
 	translators *ut.UniversalTranslator,
+	cookieManager *session.CookieManager,
+	cookieCfgs *config.QueueBiteCookies,
 ) *http.Server {
 	NewServer := &Server{
-		cfg:         cfg,
-		logger:      logger,
-		validate:    validate,
-		translators: translators,
+		cfg:           cfg,
+		logger:        logger,
+		validate:      validate,
+		translators:   translators,
+		cookieManager: cookieManager,
+		cookieCfgs:    cookieCfgs,
 
 		redis: platform.NewRedis(cfg, logger),
 	}
