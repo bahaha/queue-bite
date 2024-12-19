@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -116,7 +117,8 @@ func TestGetQueuedParty(t *testing.T) {
 					"JoinedAt", "2024-12-19T02:42:27.102841+08:00",
 					"EstimatedServiceTime", "300000000000",
 				},
-				fmt.Sprintf("%.0e", float64(10*time.Minute.Nanoseconds())), // EstimatedWait
+				// 0 1 (2), in this test each party need 5 minutes to complete
+				fmt.Sprintf("%.0e", float64(15*time.Minute.Nanoseconds())), // EstimatedWait
 				int64(2), // QueuePosition
 			},
 			validate: func(t *testing.T, party *QueuedParty, err error) {
@@ -158,6 +160,86 @@ func TestGetQueuedParty(t *testing.T) {
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestGetQueueStatus(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		setup    func(mock redismock.ClientMock)
+		validate func(t *testing.T, status *QueueStatus, err error)
+	}{
+		{
+			name: "queue is empty (no waitlist key)",
+			setup: func(mock redismock.ClientMock) {
+				mock.ExpectGet("wq:twps").RedisNil()
+				mock.ExpectZCard("wq").RedisNil()
+			},
+			validate: func(t *testing.T, status *QueueStatus, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, 0, status.TotalParties)
+				assert.Equal(t, time.Duration(0), status.EstimatedWait)
+			},
+		},
+		{
+			name: "redis read error on total wait time",
+			setup: func(mock redismock.ClientMock) {
+				mock.ExpectGet("wq:twps").SetErr(errors.New("connection error"))
+			},
+			validate: func(t *testing.T, status *QueueStatus, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, status)
+			},
+		},
+		{
+			name: "redis read error on queue count",
+			setup: func(mock redismock.ClientMock) {
+				mock.ExpectGet("wq:twps").SetVal("300000000000")
+				mock.ExpectZCard("wq").SetErr(errors.New("connection error"))
+			},
+			validate: func(t *testing.T, status *QueueStatus, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, status)
+			},
+		},
+		{
+			name: "active queue with waiting parties",
+			setup: func(mock redismock.ClientMock) {
+				mock.ExpectGet("wq:twps").SetVal(serializeDuration(10*time.Minute, false))
+				mock.ExpectZCard("wq").SetVal(2)
+			},
+			validate: func(t *testing.T, status *QueueStatus, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, 2, status.TotalParties)
+				assert.Equal(t, 10*time.Minute, status.EstimatedWait)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client, mock := redismock.NewClientMock()
+			svc := &redisWaitlistService{
+				client: client,
+				logger: log.NewNoopLogger(),
+			}
+
+			tc.setup(mock)
+			status, err := svc.GetQueueStatus(context.Background())
+			tc.validate(t, status, err)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func serializeDuration(d time.Duration, useFloat bool) string {
+	if useFloat {
+		return fmt.Sprintf("%.0e", float64(d.Nanoseconds()))
+	}
+	return strconv.Itoa(int(d.Nanoseconds()))
 }
 
 type fixedServiceTimeEstimator struct {

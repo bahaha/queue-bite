@@ -178,8 +178,11 @@ return {details, wait_time, position}
 
 // GetQueuedParty retrieves a party's details and current position from the waitlist.
 //
-//	   HGETALL for party details
-//	+   ZRANK for the queue position of the party ID.
+//	HGETALL for party details
+//	 +   GET for the prefixsum that represents the total time it spent to end servicing this party.
+//	 +   ZRANK for the queue position of the party ID.
+//
+//	 *** prefixsum - service time of this party = wait time ***
 //
 // The function returns
 //
@@ -219,10 +222,8 @@ func (s *redisWaitlistService) GetQueuedParty(ctx context.Context, partyID strin
 		return nil, err
 	}
 
-	if wait, ok := results[1].(string); ok {
-		wait, _ := strconv.ParseFloat(wait, 64)
-		queued.EstimatedWait = time.Duration(wait)
-	}
+	estimateWait := deserializeTime(results[1])
+	queued.EstimatedWait = estimateWait - queued.EstimatedServiceTime
 	queued.QueuePosition = int(results[2].(int64))
 
 	queuedParty := &QueuedParty{}
@@ -230,6 +231,36 @@ func (s *redisWaitlistService) GetQueuedParty(ctx context.Context, partyID strin
 
 	s.logger.LogDebug(WAIT_REDIS_IMPL, "get current position for the queued party", "queued party", queuedParty)
 	return queuedParty, nil
+}
+
+// GetQueueStatus retrieves the current state of the waitlist queue, including
+// total number of parties waiting and estimated total wait time.
+//
+// It uses two Redis operations:
+//   - GET on wait time prefix sum key (wq:twps) for total estimated wait
+//   - ZCARD on waitlist key (wq) for number of parties in queue
+//
+// Returns nil,error if Redis operations fail. Returns QueueStatus with zeros
+// if queue is empty (redis.Nil cases).
+func (s *redisWaitlistService) GetQueueStatus(ctx context.Context) (*QueueStatus, error) {
+
+	waitNanos, err := s.client.Get(ctx, s.getTotalWaitTimePrefixSumKey()).Result()
+	if err != nil && err != redis.Nil {
+		s.logger.LogErr(WAIT_REDIS_IMPL, err, "could not get the total wait from redis")
+		return nil, err
+	}
+	totalWait := deserializeTime(waitNanos)
+
+	amount, err := s.client.ZCard(ctx, s.getWaitlistKey()).Result()
+	if err != nil && err != redis.Nil {
+		s.logger.LogErr(WAIT_REDIS_IMPL, err, "could not find how many entities in the waitlist queue")
+		return nil, err
+	}
+
+	return &QueueStatus{
+		TotalParties:  int(amount),
+		EstimatedWait: totalWait,
+	}, nil
 }
 
 func sliceToMap(slice []interface{}) map[string]string {
@@ -240,6 +271,27 @@ func sliceToMap(slice []interface{}) map[string]string {
 		m[k] = v
 	}
 	return m
+}
+
+// deserializeTime converts Redis response (int64 or string in scientific notation)
+// to time.Duration. It handles both numeric formats gracefully:
+//   - "3e+11" -> 5m0s
+//   - 300000000000 -> 5m0s
+//
+// Returns 0 duration if parsing fails.
+func deserializeTime(val interface{}) time.Duration {
+	switch v := val.(type) {
+	case int64:
+		return time.Duration(v)
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0
+		}
+		return time.Duration(f)
+	default:
+		return 0
+	}
 }
 
 func (s *redisWaitlistService) getWaitlistKey() string {

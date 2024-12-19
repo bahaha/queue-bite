@@ -21,7 +21,7 @@ type QueueStatus struct {
 }
 
 type WaitlistService interface {
-	// GetQueueStatus() (*QueueStatus, error)
+	GetQueueStatus(ctx context.Context) (*QueueStatus, error)
 
 	GetQueuedParty(ctx context.Context, partyID string) (*QueuedParty, error)
 

@@ -31,10 +31,17 @@ func (h *waitlistVitrineHandler) GetVitrineDisplay(
 	cookieCfg := &cookieCfgs.QueuedPartyCookie
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		status, err := h.service.GetQueueStatus(r.Context())
+		if err != nil {
+			logger.LogErr(WAITLIST, err, "could not fetch queue status from waitlist")
+			templ.Handler(vitrineViewForVisitor(nil)).ServeHTTP(w, r)
+			return
+		}
+
 		clientPartyInfo := &services.QueuedParty{}
 		if err := cookieManager.GetCookie(r, &cookieCfgs.QueuedPartyCookie, clientPartyInfo); err != nil {
 			logger.LogErr(WAITLIST, err, "party is not in queued")
-			templ.Handler(vitrineViewForVisitor()).ServeHTTP(w, r)
+			templ.Handler(vitrineViewForVisitor(status)).ServeHTTP(w, r)
 			return
 		}
 
@@ -42,22 +49,44 @@ func (h *waitlistVitrineHandler) GetVitrineDisplay(
 		if queued == nil || err != nil {
 			logger.LogErr(WAITLIST, err, "unprocess entity by session-cookie party ID", "ID", clientPartyInfo.ID)
 			cookieManager.ClearCookie(w, cookieCfg)
-			templ.Handler(vitrineViewForVisitor()).ServeHTTP(w, r)
+			templ.Handler(vitrineViewForVisitor(status)).ServeHTTP(w, r)
 			return
 		}
 
 		logger.LogDebug(WAITLIST, "queued party re-enter the waitlist", "queued party", queued)
-		templ.Handler(vitrineViewForQueuedParty(queued)).ServeHTTP(w, r)
+		templ.Handler(vitrineViewForQueuedParty(queued, status)).ServeHTTP(w, r)
 	}
 }
 
-func vitrineViewForVisitor() templ.Component {
-	return view.Vitrine(view.NewVitrinePageDataForVisitor(view.NewJoinFormData()))
+func vitrineViewForVisitor(queueStatus *services.QueueStatus) templ.Component {
+	pageProps := &view.VitrinePageData{
+		Form: view.NewJoinFormData(),
+	}
+
+	if queueStatus != nil {
+		statusProps := &view.QueueStatusProps{}
+		copier.Copy(statusProps, queueStatus)
+		pageProps.QueueStatus = statusProps
+	}
+
+	return view.Vitrine(pageProps)
 }
 
-func vitrineViewForQueuedParty(queued *services.QueuedParty) templ.Component {
+func vitrineViewForQueuedParty(queued *services.QueuedParty, queueStatus *services.QueueStatus) templ.Component {
 	props := &view.QueuedPartyProps{}
 	copier.Copy(props, queued)
 
-	return view.Vitrine(view.NewVitrinePageDataForQueuedParty(props))
+	pageProps := &view.VitrinePageData{
+		QueuedParty: props,
+	}
+
+	if queueStatus != nil {
+		statusProps := &view.QueueStatusProps{
+			TotalParties:  queueStatus.TotalParties,
+			EstimatedWait: queued.EstimatedWait,
+		}
+		pageProps.QueueStatus = statusProps
+	}
+
+	return view.Vitrine(pageProps)
 }

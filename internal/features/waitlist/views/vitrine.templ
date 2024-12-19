@@ -1,30 +1,32 @@
 package waitlist
 
-import layout "queue-bite/internal/layouts"
+import (
+	layout "queue-bite/internal/layouts"
+	"strconv"
+	"time"
+)
 
 type VitrinePageData struct {
-	QueuedPartyProps *QueuedPartyProps
-	Form             *JoinFormData
+	QueueStatus *QueueStatusProps
+	QueuedParty *QueuedPartyProps
+	Form        *JoinFormData
 }
 
-func NewVitrinePageDataForVisitor(form *JoinFormData) *VitrinePageData {
-	return &VitrinePageData{
-		Form: form,
-	}
-}
-
-func NewVitrinePageDataForQueuedParty(props *QueuedPartyProps) *VitrinePageData {
-	return &VitrinePageData{
-		QueuedPartyProps: props,
-	}
+type QueueStatusProps struct {
+	TotalParties  int
+	EstimatedWait time.Duration
 }
 
 templ Vitrine(page *VitrinePageData) {
 	@layout.Base() {
-		if page.QueuedPartyProps == nil {
+		if page.QueuedParty == nil {
 			@JoinForm(page.Form)
 		} else {
-			@QueuedParty(page.QueuedPartyProps)
+			@QueuedParty(page.QueuedParty)
+		}
+		if page.QueueStatus != nil {
+			<div>Total parties: { strconv.Itoa(page.QueueStatus.TotalParties) }</div>
+			<div>EstimatedWait: { page.QueueStatus.EstimatedWait.String() }</div>
 		}
 	}
 }
