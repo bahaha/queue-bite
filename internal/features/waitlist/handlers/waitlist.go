@@ -8,7 +8,6 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/jinzhu/copier"
-	"github.com/redis/go-redis/v9"
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
@@ -24,11 +23,9 @@ type waitlistHandler struct {
 	service services.WaitlistService
 }
 
-func newWaitlistHandler(logger log.Logger, client *redis.Client) *waitlistHandler {
-	serviceTimeEstimator := services.NewLinearWaitTimeEstimator()
-
+func newWaitlistHandler(service services.WaitlistService) *waitlistHandler {
 	return &waitlistHandler{
-		service: services.NewRedisWaitlistService(logger, client, serviceTimeEstimator),
+		service: service,
 	}
 }
 

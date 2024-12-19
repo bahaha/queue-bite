@@ -143,6 +143,47 @@ func (s *redisWaitlistService) JoinQueue(ctx context.Context, party *domain.Part
 	return queuedParty, nil
 }
 
+// GetQueuedParty retrieves a party's details and current position from the waitlist.
+//
+//	   HGETALL for party details
+//	+   ZRANK for the queue position of the party ID.
+//
+// The function returns
+//
+//   - nil,nil:     if the party is not found in the queue, which can happen when they've been removed or served.
+//   - nil,error:   Any other errors during Redis operations are returned with appropriate context.
+//
+// The party's position is 0-based, matching Redis ZRANK semantics.
+func (s *redisWaitlistService) GetQueuedParty(ctx context.Context, partyID string) (*QueuedParty, error) {
+	res := s.client.HGetAll(ctx, s.getPartyDetailKey(partyID))
+	if res.Err() != nil {
+		s.logger.LogDebug(WAIT_REDIS_IMPL, "could not get all party details by ID", "ID", partyID)
+		return nil, res.Err()
+	}
+
+	var queued QueuedEntity
+	if err := res.Scan(&queued); err != nil {
+		s.logger.LogDebug(WAIT_REDIS_IMPL, "could not parse party details of party ID", "ID", partyID)
+		return nil, err
+	}
+
+	position, err := s.client.ZRank(ctx, s.getWaitlistKey(), partyID).Result()
+	if err != nil {
+		s.logger.LogDebug(WAIT_REDIS_IMPL, "party had already left the queue", "ID", partyID)
+		fmt.Println(res)
+		fmt.Println(err)
+		return nil, nil
+	}
+	queued.QueuePosition = int(position)
+
+	fmt.Println(res)
+	queuedParty := &QueuedParty{}
+	copier.Copy(queuedParty, queued)
+
+	s.logger.LogDebug(WAIT_REDIS_IMPL, "get current position of an queued party", "queued party", queuedParty)
+	return queuedParty, nil
+}
+
 func (s *redisWaitlistService) getWaitlistKey() string {
 	return "wq"
 }

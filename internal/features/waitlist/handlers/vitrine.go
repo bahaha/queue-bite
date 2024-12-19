@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/jinzhu/copier"
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
@@ -12,10 +13,14 @@ import (
 	"queue-bite/pkg/session"
 )
 
-type waitlistVitrineHandler struct{}
+type waitlistVitrineHandler struct {
+	service services.WaitlistService
+}
 
-func newWaitlistVitrineHandler() *waitlistVitrineHandler {
-	return &waitlistVitrineHandler{}
+func newWaitlistVitrineHandler(service services.WaitlistService) *waitlistVitrineHandler {
+	return &waitlistVitrineHandler{
+		service: service,
+	}
 }
 
 func (h *waitlistVitrineHandler) GetVitrineDisplay(
@@ -23,20 +28,36 @@ func (h *waitlistVitrineHandler) GetVitrineDisplay(
 	cookieManager *session.CookieManager,
 	cookieCfgs *config.QueueBiteCookies,
 ) http.HandlerFunc {
+	cookieCfg := &cookieCfgs.QueuedPartyCookie
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		queuedParty := &services.QueuedParty{}
-		if err := cookieManager.GetCookie(r, &cookieCfgs.QueuedPartyCookie, queuedParty); err != nil {
+		clientPartyInfo := &services.QueuedParty{}
+		if err := cookieManager.GetCookie(r, &cookieCfgs.QueuedPartyCookie, clientPartyInfo); err != nil {
 			logger.LogErr(WAITLIST, err, "party is not in queued")
-			templ.Handler(view.Vitrine(&view.VitrinePageData{
-				Form: view.NewJoinFormData(),
-			})).ServeHTTP(w, r)
+			templ.Handler(vitrineViewForVisitor()).ServeHTTP(w, r)
 			return
 		}
 
-		logger.LogDebug(WAITLIST, "found queued party from cookie", "queued party ID", queuedParty.ID)
-		templ.Handler(view.Vitrine(&view.VitrinePageData{
-			QueuedPartyProps: &view.QueuedPartyProps{},
-		})).ServeHTTP(w, r)
+		queued, err := h.service.GetQueuedParty(r.Context(), clientPartyInfo.ID)
+		if queued == nil || err != nil {
+			logger.LogErr(WAITLIST, err, "unprocess entity by session-cookie party ID", "ID", clientPartyInfo.ID)
+			cookieManager.ClearCookie(w, cookieCfg)
+			templ.Handler(vitrineViewForVisitor()).ServeHTTP(w, r)
+			return
+		}
+
+		logger.LogDebug(WAITLIST, "queued party re-enter the waitlist", "queued party", queued)
+		templ.Handler(vitrineViewForQueuedParty(queued)).ServeHTTP(w, r)
 	}
+}
+
+func vitrineViewForVisitor() templ.Component {
+	return view.Vitrine(view.NewVitrinePageDataForVisitor(view.NewJoinFormData()))
+}
+
+func vitrineViewForQueuedParty(queued *services.QueuedParty) templ.Component {
+	props := &view.QueuedPartyProps{}
+	copier.Copy(props, queued)
+
+	return view.Vitrine(view.NewVitrinePageDataForQueuedParty(props))
 }

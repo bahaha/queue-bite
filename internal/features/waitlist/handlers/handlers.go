@@ -2,6 +2,7 @@ package waitlist
 
 import (
 	log "queue-bite/internal/config/logger"
+	"queue-bite/internal/features/waitlist/services"
 	"queue-bite/internal/platform"
 )
 
@@ -15,8 +16,11 @@ type WaitlistHandlers struct {
 }
 
 func NewWaitlistHandlers(logger log.Logger, redis *platform.RedisComponent) *WaitlistHandlers {
+	estimator := services.NewLinearServiceTimeEstimator()
+	service := services.NewRedisWaitlistService(logger, redis.Client, estimator)
+
 	return &WaitlistHandlers{
-		Waitlist: newWaitlistHandler(logger, redis.Client),
-		Vitrine:  newWaitlistVitrineHandler(),
+		Waitlist: newWaitlistHandler(service),
+		Vitrine:  newWaitlistVitrineHandler(service),
 	}
 }

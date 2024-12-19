@@ -7,6 +7,18 @@ type VitrinePageData struct {
 	Form             *JoinFormData
 }
 
+func NewVitrinePageDataForVisitor(form *JoinFormData) *VitrinePageData {
+	return &VitrinePageData{
+		Form: form,
+	}
+}
+
+func NewVitrinePageDataForQueuedParty(props *QueuedPartyProps) *VitrinePageData {
+	return &VitrinePageData{
+		QueuedPartyProps: props,
+	}
+}
+
 templ Vitrine(page *VitrinePageData) {
 	@layout.Base() {
 		if page.QueuedPartyProps == nil {

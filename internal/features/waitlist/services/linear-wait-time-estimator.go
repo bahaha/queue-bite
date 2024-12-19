@@ -10,7 +10,7 @@ import (
 type LinearServiceTimeEstimator struct {
 }
 
-func NewLinearWaitTimeEstimator() *LinearServiceTimeEstimator {
+func NewLinearServiceTimeEstimator() *LinearServiceTimeEstimator {
 	return &LinearServiceTimeEstimator{}
 }
 
