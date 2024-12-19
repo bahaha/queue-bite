@@ -41,7 +41,6 @@ type LocaleTranslators struct {
 //	if trans, ok := locales.Translators.GetTranslator("ja"); ok {
 //	    // Translate validation errors
 //	    for _, err := range err.(validator.ValidationErrors) {
-//	        fmt.Println(err.Translate(trans))
 //	        // Output in Japanese: "名前は必須フィールドです"
 //	    }
 //	}

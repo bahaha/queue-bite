@@ -11,12 +11,13 @@ type QueuedParty struct {
 	domain.Party
 	QueuePosition        int
 	JoinedAt             time.Time
+	EstimatedWait        time.Duration
 	EstimatedServiceTime time.Duration
 }
 
 type QueueStatus struct {
-	TotalParties         int
-	EstimatedServiceTime time.Duration
+	TotalParties  int
+	EstimatedWait time.Duration
 }
 
 type WaitlistService interface {

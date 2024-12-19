@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redismock/v9"
 	"github.com/oklog/ulid/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	log "queue-bite/internal/config/logger"
@@ -16,7 +18,7 @@ import (
 )
 
 func TestJoinWaitlist(t *testing.T) {
-	joinScriptHash := "ff40ec9ec852095a782a5ef8e4f29cac8cafdce6"
+	joinScriptHash := "84cde3f5aaa51cb273001e2791dce3b5a1581c93"
 
 	tests := []struct {
 		name       string
@@ -30,6 +32,7 @@ func TestJoinWaitlist(t *testing.T) {
 			party:    &domain.Party{Name: "Test Party", Size: 4},
 			queuePos: 2,
 			validateFn: func(t *testing.T, queued *QueuedParty) {
+				assert.Equal(t, 10*time.Minute, queued.EstimatedWait)
 				assert.Equal(t, 5*time.Minute, queued.EstimatedServiceTime)
 			},
 		},
@@ -56,10 +59,11 @@ func TestJoinWaitlist(t *testing.T) {
 			id := uid.String()
 			service.(*redisWaitlistService).generateUID = func() ulid.ULID { return uid }
 
+			totalWait := time.Duration(tt.queuePos*5) * time.Minute
 			rmock.ExpectEvalSha(joinScriptHash,
 				[]string{"wq", fmt.Sprintf("qb:p:%s", id), "wq:twps", fmt.Sprintf("wq:ps:%s", id)},
 				[]interface{}{id, 5 * time.Minute, uid.Time(), service.(*redisWaitlistService).waitTTL},
-			).SetVal(tt.queuePos)
+			).SetVal([]interface{}{tt.queuePos, fmt.Sprintf("%.0e", float64(totalWait.Nanoseconds()))})
 			rmock.ExpectHSet(fmt.Sprintf("qb:p:%s", id)).SetVal(1)
 
 			queued, err := service.JoinQueue(context.Background(), tt.party)
@@ -76,74 +80,79 @@ func TestJoinWaitlist(t *testing.T) {
 
 func TestGetQueuedParty(t *testing.T) {
 	t.Parallel()
-	var emptyQueuedParty func(mock redismock.ClientMock, partyID string)
-	emptyQueuedParty = func(mock redismock.ClientMock, partyID string) {
-		mock.ExpectHGetAll("qb:p:" + partyID).RedisNil()
-	}
 
-	var foundQueuedParty func(mock redismock.ClientMock, partyID string)
-	foundQueuedParty = func(mock redismock.ClientMock, partyID string) {
-		mock.ExpectHGetAll("qb:p:" + partyID).SetVal(map[string]string{
-			"ID":                   "01JFDH85MYTFRWGJVV3PDSQR18",
-			"Name":                 "CCC",
-			"Size":                 "4",
-			"JoinedAt":             "2024-12-19T02:42:27.102841+08:00",
-			"EstimatedServiceTime": "300000000000",
-		})
-	}
+	const partyID = "01JFDH85MYTFRWGJVV3PDSQR18"
+	const scriptSha = "bb0ebe03f23b23bc3b8eafa9aecc7f7fbc53c573"
 
 	testCases := []struct {
-		name     string
-		setup    func(mock redismock.ClientMock, partyID string)
-		validate func(t *testing.T, party *QueuedParty, err error)
+		name      string
+		scriptRet interface{}
+		scriptErr error
+		validate  func(t *testing.T, party *QueuedParty, err error)
 	}{
 		{
-			name:  "party not found",
-			setup: emptyQueuedParty,
+			name:      "party not found",
+			scriptErr: redis.Nil,
+			validate: func(t *testing.T, party *QueuedParty, err error) {
+				assert.NoError(t, err)
+				assert.Nil(t, party)
+			},
+		},
+		{
+			name:      "script execution error",
+			scriptErr: errors.New("redis connection error"),
 			validate: func(t *testing.T, party *QueuedParty, err error) {
 				assert.Error(t, err)
 				assert.Nil(t, party)
 			},
 		},
 		{
-			name: "party details found but not in queue",
-			setup: func(mock redismock.ClientMock, partyID string) {
-				foundQueuedParty(mock, partyID)
-				mock.ExpectZRank("wq", partyID).RedisNil()
-			},
-			validate: func(t *testing.T, party *QueuedParty, err error) {
-				assert.NoError(t, err)
-				assert.Nil(t, party)
-			},
-		},
-		{
-			name: "party found with position",
-			setup: func(mock redismock.ClientMock, partyID string) {
-				foundQueuedParty(mock, partyID)
-				mock.ExpectZRank("wq", partyID).SetVal(2)
+			name: "successful party lookup",
+			scriptRet: []interface{}{
+				[]interface{}{
+					"ID", "01JFDH85MYTFRWGJVV3PDSQR18",
+					"Name", "CCC",
+					"Size", "4",
+					"JoinedAt", "2024-12-19T02:42:27.102841+08:00",
+					"EstimatedServiceTime", "300000000000",
+				},
+				fmt.Sprintf("%.0e", float64(10*time.Minute.Nanoseconds())), // EstimatedWait
+				int64(2), // QueuePosition
 			},
 			validate: func(t *testing.T, party *QueuedParty, err error) {
 				assert.NoError(t, err)
 				assert.NotNil(t, party)
-				assert.Equal(t, 2, party.QueuePosition)
+				assert.Equal(t, 2, party.QueuePosition, "party queue qosition")
 				assert.Equal(t, "CCC", party.Name)
 				assert.Equal(t, 4, party.Size)
+				assert.Equal(t, 10*time.Minute, party.EstimatedWait)
+				assert.Equal(t, 5*time.Minute, party.EstimatedServiceTime)
 			},
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture range variable
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			client, mock := redismock.NewClientMock()
-			svc := &redisWaitlistService{
-				client: client,
-				logger: log.NewNoopLogger(),
+
+			expectedCmd := mock.ExpectEvalSha(scriptSha,
+				[]string{"qb:p:" + partyID, "wq", "wq:ps:" + partyID},
+				[]interface{}{partyID},
+			)
+			if tc.scriptErr != nil {
+				expectedCmd.SetErr(tc.scriptErr)
+			} else {
+				expectedCmd.SetVal(tc.scriptRet)
 			}
 
-			partyID := "01JFDH85MYTFRWGJVV3PDSQR18"
-			tc.setup(mock, partyID)
+			svc := NewRedisWaitlistService(
+				log.NewNoopLogger(),
+				client,
+				newFixedServiceTimeEstimator(5),
+			)
+
 			party, err := svc.GetQueuedParty(context.Background(), partyID)
 			tc.validate(t, party, err)
 			assert.NoError(t, mock.ExpectationsWereMet())
