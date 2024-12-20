@@ -8,14 +8,16 @@ import (
 type PartyStatus string
 
 const (
+	SeatReady     PartyStatus = "ready"
 	PartyNotified PartyStatus = "notified"
+	PartySeated   PartyStatus = "seated"
 	PartyServing  PartyStatus = "serving"
 )
 
 type PartyServiceState struct {
-	*domain.Party
+	ID             domain.PartyID
 	Status         PartyStatus
 	NotifiedAt     time.Time
-	ServiceStartAt *time.Time
+	ServiceStartAt time.Time
 	SeatsOccupied  int
 }
