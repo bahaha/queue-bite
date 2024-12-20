@@ -42,7 +42,7 @@ func NewCookieManager(encryptionKey string) (*CookieManager, error) {
 	}, nil
 }
 
-func (cm *CookieManager) SetCookie(w http.ResponseWriter, conf CookieConfig, payload interface{}) error {
+func (cm *CookieManager) SetCookie(w http.ResponseWriter, conf *CookieConfig, payload interface{}) error {
 	plaintext, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("payload must match the JSON structure")

@@ -10,6 +10,7 @@ import (
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
+	st "queue-bite/internal/features/servicetime/service"
 	"queue-bite/internal/platform"
 	"queue-bite/pkg/session"
 )
@@ -22,26 +23,32 @@ type Server struct {
 	cookieManager *session.CookieManager
 	cookieCfgs    *config.QueueBiteCookies
 
-	redis *platform.RedisComponent
+	redis                *platform.RedisComponent
+	serviceTimeEstimator st.ServiceTimeEstimator
 }
 
 func NewServer(
 	cfg *config.Config,
 	logger log.Logger,
-	validate *validator.Validate,
-	translators *ut.UniversalTranslator,
-	cookieManager *session.CookieManager,
-	cookieCfgs *config.QueueBiteCookies,
+	serviceTimeEstimator st.ServiceTimeEstimator,
 ) *http.Server {
+	cookieManager, err := session.NewCookieManager(cfg.CookieEncryptionKey)
+	if err != nil {
+		logger.LogErr(log.Server, err, "cookie encryption key setup", "encryption key", cfg.CookieEncryptionKey)
+	}
+	localeTrans := config.NewLocaleTranslations()
+	cookieCfgs := config.NewCookieConfigs(cfg)
+
 	NewServer := &Server{
 		cfg:           cfg,
 		logger:        logger,
-		validate:      validate,
-		translators:   translators,
+		validate:      localeTrans.Validator,
+		translators:   localeTrans.Translators,
 		cookieManager: cookieManager,
 		cookieCfgs:    cookieCfgs,
 
-		redis: platform.NewRedis(cfg, logger),
+		redis:                platform.NewRedis(cfg, logger),
+		serviceTimeEstimator: serviceTimeEstimator,
 	}
 
 	// Declare Server config

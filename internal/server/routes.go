@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	waitlist "queue-bite/internal/features/waitlist/handlers"
+	waitlist "queue-bite/internal/features/waitlist/handler"
 	"queue-bite/internal/platform"
 	"queue-bite/pkg/utils"
 )
@@ -28,9 +28,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Get("/healthz", healthHandler(s.redis))
 
 	r.Route("/waitlist", func(r chi.Router) {
-		handler := waitlist.NewWaitlistHandlers(s.logger, s.redis)
-		r.Get("/", handler.Vitrine.GetVitrineDisplay(s.logger, s.cookieManager, s.cookieCfgs))
-		r.Post("/join", handler.Waitlist.JoinWaitlist(s.logger, s.validate, s.translators, s.cookieManager, s.cookieCfgs))
+		handlers := waitlist.NewWaitlistHandlers(s.logger, s.redis, s.serviceTimeEstimator)
+		cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
+		r.Get("/", handlers.Vitrine.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty))
+		r.Post("/join", handlers.Waitlist.HandleJoinWaitlist(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
 	})
 
 	return r

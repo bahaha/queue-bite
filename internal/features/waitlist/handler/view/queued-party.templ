@@ -1,0 +1,22 @@
+package view
+
+import (
+	"queue-bite/internal/features/waitlist/domain"
+	"strconv"
+)
+
+type QueuedPartyProps struct {
+	*domain.QueuedParty
+	ReadyForSeating bool
+}
+
+templ QueuedParty(props *QueuedPartyProps) {
+	<ul>
+		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.Position) }</div></li>
+		<li><div>PartyName</div><div>{ props.Name }</div></li>
+		<li><div>PartySize</div><div>{ strconv.Itoa(props.Size) }</div></li>
+		if props.ReadyForSeating {
+			<li><div>ReadyForSeating</div><div>Check-in</div></li>
+		}
+	</ul>
+}

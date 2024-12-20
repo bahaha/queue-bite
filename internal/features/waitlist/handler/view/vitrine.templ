@@ -1,0 +1,27 @@
+package view
+
+import (
+	"queue-bite/internal/features/waitlist/domain"
+	layout "queue-bite/internal/layouts"
+	"strconv"
+)
+
+type VitrinePageData struct {
+	QueueStatus      *domain.QueueStatus
+	QueuedPartyProps *QueuedPartyProps
+	Form             *JoinFormData
+}
+
+templ VitrinePage(page *VitrinePageData) {
+	@layout.Base() {
+		if page.QueuedPartyProps == nil {
+			@JoinForm(page.Form)
+		} else {
+			@QueuedParty(page.QueuedPartyProps)
+		}
+		if page.QueueStatus != nil {
+			<div>Total parties: { strconv.Itoa(page.QueueStatus.TotalParties) }</div>
+			<div>EstimatedWait: { page.QueueStatus.CurrentWaitTime.String() }</div>
+		}
+	}
+}

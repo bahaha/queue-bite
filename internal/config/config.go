@@ -25,6 +25,9 @@ type Config struct {
 		Port     int    `env:"WAITLIST_REDIS_PORT" default:"6379"`
 		Password string `env:"WAITLIST_REDIS_PASSWORD"`
 	}
+	ServiceEstimator struct {
+		FixedRateUnit time.Duration `env:"FIXED_RATE_SERVICE_ESTIMATOR_UNIT" default:"5m"`
+	}
 }
 
 func LoadEnvConfig(getenv func(string) string) (*Config, error) {

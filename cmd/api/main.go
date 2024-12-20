@@ -11,9 +11,9 @@ import (
 
 	"queue-bite/internal/config"
 	"queue-bite/internal/config/logger"
+	"queue-bite/internal/features/servicetime/service"
 	"queue-bite/internal/server"
 	_ "queue-bite/pkg/env/autoload"
-	"queue-bite/pkg/session"
 )
 
 func main() {
@@ -38,14 +38,12 @@ func run(
 		return err
 	}
 	logger := log.NewZerologLogger(stdout, cfg.Dev)
-	localeTrans := config.NewLocaleTranslations()
-	cookieManager, err := session.NewCookieManager(cfg.CookieEncryptionKey)
-	if err != nil {
-		logger.LogErr(log.Server, err, "cookie encryption key setup", "encryption key", cfg.CookieEncryptionKey)
-	}
-	cookieCfgs := config.NewCookieConfigs(cfg)
 
-	server := server.NewServer(cfg, logger, localeTrans.Validator, localeTrans.Translators, cookieManager, cookieCfgs)
+	server := server.NewServer(
+		cfg,
+		logger,
+		service.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
+	)
 	serverError := make(chan error, 1)
 
 	go func() {

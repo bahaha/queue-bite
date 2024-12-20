@@ -1,31 +1,36 @@
-package waitlist
+package view
 
 import (
 	"queue-bite/pkg/components/ui"
 	"queue-bite/pkg/components/ui/form"
-	f "queue-bite/pkg/form"
+	fm "queue-bite/pkg/form"
 	"queue-bite/pkg/utils"
 )
 
 type JoinFormData struct {
-	PartyName *f.FormItemContext
+	PartyName *fm.FormItemContext
+	PartySize *fm.FormItemContext
 }
 
 func NewJoinFormData() *JoinFormData {
 	return &JoinFormData{
-		PartyName: &f.FormItemContext{
+		PartyName: &fm.FormItemContext{
 			ID:   utils.GenerateID(),
 			Name: "PartyName",
+		},
+		PartySize: &fm.FormItemContext{
+			ID:   utils.GenerateID(),
+			Name: "PartySize",
 		},
 	}
 }
 
-templ JoinForm(vw *JoinFormData) {
+templ JoinForm(props *JoinFormData) {
 	<form hx-post="/waitlist/join" hx-target="this" class="space-y-8">
-		@form.FormItem(form.NewFormItemProps().WithFormItem(vw.PartyName)) {
+		@form.FormItem(form.NewFormItemProps().WithFormItem(props.PartyName)) {
 			<label
 				{ ui.NewLabel(ui.LabelProps().
-                        WithinContext(ctx, vw.PartyName.ID).
+                        WithinContext(ctx, props.PartyName.ID).
                         WithRequired(true))... }
 			>
 				Name
@@ -34,9 +39,10 @@ templ JoinForm(vw *JoinFormData) {
 				placeholder="Enter your name"
 				required
 				{ ui.NewInput(ui.InputProps().
-                        WithinContext(ctx, vw.PartyName.ID))... }
+                        WithinContext(ctx, props.PartyName.ID))... }
 			/>
 		}
+		<input name="PartySize" type="number" value="2"/>
 		<button
 			{ ui.NewButton(ui.ButtonProps().
                     WithClass("w-full").
