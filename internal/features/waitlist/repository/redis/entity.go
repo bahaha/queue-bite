@@ -1,6 +1,7 @@
 package redis
 
 import (
+	d "queue-bite/internal/domain"
 	"queue-bite/internal/features/waitlist/domain"
 	"time"
 
@@ -9,10 +10,11 @@ import (
 
 type redisQueuedParty struct {
 	// Flattened fields from Party domain with Redis tags
-	ID       string    `redis:"id"`
-	Name     string    `redis:"name"`
-	Size     int       `redis:"size"`
-	JoinedAt time.Time `redis:"joined_at"`
+	ID       string        `redis:"id"`
+	Name     string        `redis:"name"`
+	Size     int           `redis:"size"`
+	JoinedAt time.Time     `redis:"joined_at"`
+	Status   d.PartyStatus `redis:"status"`
 
 	// Queue-specific fields
 	Position             int           `redis:"-"` // Computed from ZRANK

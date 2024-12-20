@@ -28,10 +28,12 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Get("/healthz", healthHandler(s.redis))
 
 	r.Route("/waitlist", func(r chi.Router) {
-		handlers := waitlist.NewWaitlistHandlers(s.logger, s.redis, s.serviceTimeEstimator)
+		waitlistHandlers := waitlist.NewWaitlistHandler(s.waitlist)
+		vitrineHandlers := waitlist.NewVitrineHandler(s.waitlist)
 		cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
-		r.Get("/", handlers.Vitrine.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty))
-		r.Post("/join", handlers.Waitlist.HandleJoinWaitlist(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
+
+		r.Get("/", vitrineHandlers.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty))
+		r.Post("/join", waitlistHandlers.HandleJoinWaitlist(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
 	})
 
 	return r

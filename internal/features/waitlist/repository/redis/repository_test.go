@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"os"
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
 	"queue-bite/internal/features/waitlist/domain"
@@ -23,13 +24,14 @@ func TestRedisWaitlistRepository(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: endpoint})
 	defer client.Close()
 
-	repo := NewRedisWaitlistRepository(log.NewNoopLogger(), client, 1*time.Minute)
+	repo := NewRedisWaitlistRepository(log.NewZerologLogger(os.Stdout, true), client, 1*time.Minute, 2)
 	ctx := context.Background()
 
 	party := &domain.QueuedParty{
 		Party: &d.Party{
 			ID:                   "test-party-1",
 			Name:                 "test-party-name",
+			Status:               d.PartyStatusWaiting,
 			Size:                 4,
 			EstimatedServiceTime: 30 * time.Minute,
 		},
@@ -48,6 +50,7 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, addedParty.Position)
 		assert.Equal(t, party.EstimatedServiceTime, addedParty.EstimatedEndOfServiceTime)
+		assert.Equal(t, d.PartyStatusWaiting, addedParty.Status)
 		assert.Equal(t, time.Duration(0), addedParty.RemainingWaitTime())
 
 		retrievedParty, err := repo.GetParty(ctx, party.ID)
@@ -56,6 +59,7 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		assert.Equal(t, party.Name, retrievedParty.Name)
 		assert.Equal(t, party.Size, retrievedParty.Size)
 		assert.Equal(t, party.EstimatedServiceTime, retrievedParty.EstimatedServiceTime)
+		assert.Equal(t, d.PartyStatusWaiting, retrievedParty.Status)
 		assert.Equal(t, 0, retrievedParty.Position)
 		assert.Equal(t, time.Duration(0), addedParty.RemainingWaitTime())
 	})
@@ -96,6 +100,18 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		assert.Equal(t, party.EstimatedServiceTime+partyII.EstimatedServiceTime+partyIII.EstimatedServiceTime, status.CurrentWaitTime)
 	})
 
+	t.Run("scan queued parties by order in queue", func(t *testing.T) {
+		parties, err := repo.ScanParties(ctx)
+		require.NoError(t, err)
+		idx := 0
+
+		expectedIDs := []string{"test-party-1", "test-party-2", "test-party-3"}
+		for party := range parties {
+			assert.Equal(t, d.PartyID(expectedIDs[idx]), party.ID)
+			idx++
+		}
+	})
+
 	t.Run("party in the middle removed", func(t *testing.T) {
 		retrievedPartyIII, err := repo.GetParty(ctx, partyIII.ID)
 
@@ -105,6 +121,16 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		retrievedPartyIII, err = repo.GetParty(ctx, partyIII.ID)
 		assert.Equal(t, 1, retrievedPartyIII.Position)
 		assert.Equal(t, party.EstimatedServiceTime, retrievedPartyIII.RemainingWaitTime())
+	})
+
+	t.Run("notify the head of the waitlist for ready to serve", func(t *testing.T) {
+		err := repo.UpdatePartyStatus(ctx, party.ID, d.PartyStatusReady)
+		require.NoError(t, err)
+
+		retrievedParty, err := repo.GetPartyDetails(ctx, party.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, retrievedParty)
+		assert.Equal(t, d.PartyStatusReady, retrievedParty.Status)
 	})
 
 	t.Run("remove the first party in queue", func(t *testing.T) {

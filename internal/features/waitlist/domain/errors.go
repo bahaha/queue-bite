@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	ErrPartyAlreadyQueued = errors.New("party is already in queue")
-	ErrPartyNotFound      = errors.New("party not found in queue")
+	ErrPartyAlreadyQueued           = errors.New("party is already in queue")
+	ErrPartyNotFound                = errors.New("party not found in queue")
+	ErrInvalidPartyStatusTransition = errors.New("invalid party status transition")
 )
 
 type QueueOperationError struct {

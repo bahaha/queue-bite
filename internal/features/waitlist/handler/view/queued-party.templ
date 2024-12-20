@@ -3,11 +3,13 @@ package view
 import (
 	"queue-bite/internal/features/waitlist/domain"
 	"strconv"
+	"time"
 )
 
 type QueuedPartyProps struct {
 	*domain.QueuedParty
-	ReadyForSeating bool
+	RemainingWaitTime time.Duration
+	ReadyForSeating   bool
 }
 
 templ QueuedParty(props *QueuedPartyProps) {
@@ -15,6 +17,8 @@ templ QueuedParty(props *QueuedPartyProps) {
 		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.Position) }</div></li>
 		<li><div>PartyName</div><div>{ props.Name }</div></li>
 		<li><div>PartySize</div><div>{ strconv.Itoa(props.Size) }</div></li>
+		<li><div>RemainingWaitTime</div><div>{ props.RemainingWaitTime.String() }</div></li>
+		<li><div>Status</div><div>{ string(props.Status) }</div></li>
 		if props.ReadyForSeating {
 			<li><div>ReadyForSeating</div><div>Check-in</div></li>
 		}

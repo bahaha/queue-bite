@@ -16,10 +16,11 @@ import (
 var REDIS_WAITLIST = "waitlist/redis"
 
 type redisWaitlistRepository struct {
-	logger log.Logger
-	client *redis.Client
-	keys   *queueKeys
-	ttl    time.Duration
+	logger    log.Logger
+	client    *redis.Client
+	keys      *queueKeys
+	ttl       time.Duration
+	scanRange int
 
 	// preloaded Lua scripts
 	joinScript     *redis.Script
@@ -27,12 +28,13 @@ type redisWaitlistRepository struct {
 	getPartyScript *redis.Script
 }
 
-func NewRedisWaitlistRepository(logger log.Logger, client *redis.Client, ttl time.Duration) *redisWaitlistRepository {
+func NewRedisWaitlistRepository(logger log.Logger, client *redis.Client, ttl time.Duration, scanRange int) *redisWaitlistRepository {
 	return &redisWaitlistRepository{
-		logger: logger,
-		client: client,
-		keys:   &queueKeys{},
-		ttl:    ttl,
+		logger:    logger,
+		client:    client,
+		keys:      &queueKeys{},
+		ttl:       ttl,
+		scanRange: scanRange,
 
 		joinScript:     redis.NewScript(joinScript),
 		leaveScript:    redis.NewScript(leaveScript),
@@ -146,6 +148,27 @@ func (r *redisWaitlistRepository) GetParty(ctx context.Context, partyID d.PartyI
 	return party, nil
 }
 
+func (r *redisWaitlistRepository) GetPartyDetails(ctx context.Context, partyID d.PartyID) (*domain.QueuedParty, error) {
+	res := r.client.HGetAll(ctx, r.keys.partyDetails(partyID))
+	if res.Err() != nil {
+		r.logger.LogErr(REDIS_WAITLIST, res.Err(), "could not get party details", "party id", partyID)
+		return nil, res.Err()
+	}
+
+	if res.Val() == nil {
+		return nil, nil
+	}
+
+	queuedParty := &redisQueuedParty{}
+	if err := res.Scan(queuedParty); err != nil {
+		r.logger.LogErr(REDIS_WAITLIST, err, "could not parse queued entity into redisParty struct", "party id", partyID, "cmd", res)
+		return nil, err
+	}
+
+	r.logger.LogDebug(REDIS_WAITLIST, "get party details", "party", queuedParty)
+	return queuedParty.asQueuedParty(), nil
+}
+
 func (r *redisWaitlistRepository) GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error) {
 	waitNanos, err := r.client.Get(ctx, r.keys.waitTimePrefixsum()).Result()
 	if err != nil && err != redis.Nil {
@@ -164,6 +187,64 @@ func (r *redisWaitlistRepository) GetQueueStatus(ctx context.Context) (*domain.Q
 		TotalParties:    int(amount),
 		CurrentWaitTime: totalWait,
 	}, nil
+}
+
+func (r *redisWaitlistRepository) ScanParties(ctx context.Context) (<-chan *domain.QueuedParty, error) {
+	queuedParties := make(chan *domain.QueuedParty)
+
+	// Start streaming in background
+	go func() {
+		defer close(queuedParties)
+
+		offset := 0
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			ids, err := r.client.ZRange(ctx, r.keys.waitingQueue(), int64(offset), int64(offset+r.scanRange-1)).Result()
+			if err != nil {
+				r.logger.LogErr(REDIS_WAITLIST, err, "could not scan the waitlist", "from range", offset, "to", offset+r.scanRange-1)
+				return
+			}
+
+			if len(ids) == 0 {
+				r.logger.LogDebug(REDIS_WAITLIST, "empty waitlist")
+				return
+			}
+
+			for _, partyID := range ids {
+				queuedParty, err := r.GetParty(ctx, d.PartyID(partyID))
+				if err != nil {
+					r.logger.LogDebug(REDIS_WAITLIST, "error getting party %s: %w", partyID, err)
+					continue
+				}
+
+				select {
+				case queuedParties <- queuedParty:
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			offset += len(ids)
+		}
+	}()
+
+	return queuedParties, nil
+}
+
+func (r *redisWaitlistRepository) UpdatePartyStatus(ctx context.Context, partyID d.PartyID, status d.PartyStatus) error {
+	success := r.client.HSet(ctx, r.keys.partyDetails(partyID), "status", status).Val()
+	if success == 0 {
+		r.logger.LogDebug(REDIS_WAITLIST, "could not found party in waitlist queue for status update", "party id", partyID)
+	} else {
+		r.logger.LogDebug(REDIS_WAITLIST, "update party status", "party id", partyID, "status", status)
+	}
+	return nil
 }
 
 // deserializeTime converts Redis response (int64 or string in scientific notation)

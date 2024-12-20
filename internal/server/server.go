@@ -10,8 +10,11 @@ import (
 
 	"queue-bite/internal/config"
 	log "queue-bite/internal/config/logger"
-	st "queue-bite/internal/features/servicetime/service"
+	hds "queue-bite/internal/features/hostdesk/service"
+	sms "queue-bite/internal/features/seatmanager/service"
+	ws "queue-bite/internal/features/waitlist/service"
 	"queue-bite/internal/platform"
+	eb "queue-bite/internal/platform/eventbus"
 	"queue-bite/pkg/session"
 )
 
@@ -23,14 +26,20 @@ type Server struct {
 	cookieManager *session.CookieManager
 	cookieCfgs    *config.QueueBiteCookies
 
-	redis                *platform.RedisComponent
-	serviceTimeEstimator st.ServiceTimeEstimator
+	redis *platform.RedisComponent
+
+	waitlist ws.Waitlist
 }
 
 func NewServer(
 	cfg *config.Config,
 	logger log.Logger,
-	serviceTimeEstimator st.ServiceTimeEstimator,
+	redis *platform.RedisComponent,
+	eventRegistry *eb.EventRegistry,
+	eventbus eb.EventBus,
+	waitlist ws.Waitlist,
+	hostdesk hds.HostDesk,
+	seatmanager sms.SeatManager,
 ) *http.Server {
 	cookieManager, err := session.NewCookieManager(cfg.CookieEncryptionKey)
 	if err != nil {
@@ -47,8 +56,9 @@ func NewServer(
 		cookieManager: cookieManager,
 		cookieCfgs:    cookieCfgs,
 
-		redis:                platform.NewRedis(cfg, logger),
-		serviceTimeEstimator: serviceTimeEstimator,
+		waitlist: waitlist,
+
+		redis: platform.NewRedis(cfg, logger),
 	}
 
 	// Declare Server config

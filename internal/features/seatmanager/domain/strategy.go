@@ -2,9 +2,9 @@ package domain
 
 import (
 	"context"
-	"queue-bite/internal/domain"
+	waitlist "queue-bite/internal/features/waitlist/domain"
 )
 
 type SeatingStrategy interface {
-	EvaluateNextParty(ctx context.Context, vacancySeats int) (*domain.Party, error)
+	EvaluateNextParty(ctx context.Context, vacancySeats int) (*waitlist.QueuedParty, error)
 }

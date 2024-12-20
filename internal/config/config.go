@@ -25,8 +25,15 @@ type Config struct {
 		Port     int    `env:"WAITLIST_REDIS_PORT" default:"6379"`
 		Password string `env:"WAITLIST_REDIS_PASSWORD"`
 	}
+	Waitlist struct {
+		ScanChunkSize int           `env:"WAITLIST_SCAN_CHUNK_SIZE" default:"5"`
+		EntityTTL     time.Duration `env:"WAITLIST_ENTITY_TTL" default:"24h"`
+	}
 	ServiceEstimator struct {
 		FixedRateUnit time.Duration `env:"FIXED_RATE_SERVICE_ESTIMATOR_UNIT" default:"5m"`
+	}
+	HostDesk struct {
+		InstantServeHostDeskSeatCapacity int `env:"INSTANT_SERVE_HOST_DESK_SEAT_CAPACITY" default:"12"`
 	}
 }
 

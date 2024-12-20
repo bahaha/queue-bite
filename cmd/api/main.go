@@ -11,7 +11,15 @@ import (
 
 	"queue-bite/internal/config"
 	"queue-bite/internal/config/logger"
-	"queue-bite/internal/features/servicetime/service"
+	hostdesk_repo "queue-bite/internal/features/hostdesk/repository"
+	hostdesk "queue-bite/internal/features/hostdesk/service"
+	seatmanager "queue-bite/internal/features/seatmanager/service"
+	servicetime "queue-bite/internal/features/servicetime/service"
+	waitlist_redis "queue-bite/internal/features/waitlist/repository/redis"
+	waitlist "queue-bite/internal/features/waitlist/service"
+	"queue-bite/internal/platform"
+	eb "queue-bite/internal/platform/eventbus"
+	eb_redis "queue-bite/internal/platform/eventbus/redis"
 	"queue-bite/internal/server"
 	_ "queue-bite/pkg/env/autoload"
 )
@@ -37,14 +45,58 @@ func run(
 	if err != nil {
 		return err
 	}
+
 	logger := log.NewZerologLogger(stdout, cfg.Dev)
+	redis := platform.NewRedis(cfg, logger)
+
+	eventRegistry := eb.NewEventRegistry()
+	eventbus := eb_redis.NewRedisEventBus(logger, redis.Client, eventRegistry)
+
+	waitlist := waitlist.NewWaitlistService(
+		logger,
+		waitlist_redis.NewRedisWaitlistRepository(logger, redis.Client, cfg.Waitlist.EntityTTL, cfg.Waitlist.ScanChunkSize),
+		servicetime.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
+	)
+
+	instantHost := hostdesk.NewInstantServeHostDesk(
+		logger,
+		cfg.HostDesk.InstantServeHostDeskSeatCapacity,
+		hostdesk_repo.NewInMemoryHostDeskRepository(logger),
+		eventbus,
+		eventRegistry,
+	)
+
+	seatManager := seatmanager.NewSeatManager(
+		logger,
+		eventbus,
+		eventRegistry,
+		waitlist,
+		instantHost,
+		seatmanager.NewOrderedSeatingStrategy(waitlist),
+	)
 
 	server := server.NewServer(
 		cfg,
 		logger,
-		service.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
+		redis,
+		eventRegistry,
+		eventbus,
+		waitlist,
+		instantHost,
+		seatManager,
 	)
+	seatManagerError := make(chan error, 1)
 	serverError := make(chan error, 1)
+
+	go func() {
+		if err := seatManager.WatchSeatVacancy(ctx); err != nil {
+			logger.LogErr(log.Server, err, "failed to start seat manager")
+			seatManagerError <- fmt.Errorf("failed to start seat manager: %w", err)
+			return
+		}
+
+		seatManagerError <- nil
+	}()
 
 	go func() {
 		logger.LogInfo(log.Server, "starting server", "addr", server.Addr)
@@ -54,15 +106,20 @@ func run(
 			serverError <- fmt.Errorf("could not start server: %w", err)
 			return
 		}
+
 		serverError <- nil
 	}()
 
 	select {
+	case err := <-seatManagerError:
+		return err
 	case err := <-serverError:
+		seatManager.UnwatchSeatVacancy(ctx)
 		return err
 	case <-ctx.Done():
 		logger.LogInfo(log.Server, "shutting down server gracefully, press <C-c> again to force")
 
+		seatManager.UnwatchSeatVacancy(ctx)
 		sctx, stop := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 		defer stop()
 
