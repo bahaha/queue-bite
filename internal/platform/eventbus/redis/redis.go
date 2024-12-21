@@ -22,7 +22,7 @@ type redisEventBus struct {
 	registry *eventbus.EventRegistry
 }
 
-func NewRedisEventBus(logger log.Logger, client *redis.Client, registry *eventbus.EventRegistry) *redisEventBus {
+func NewRedisEventBus(logger log.Logger, client *redis.Client, registry *eventbus.EventRegistry) eventbus.EventBus {
 	bus := &redisEventBus{
 		logger:   logger,
 		client:   client,

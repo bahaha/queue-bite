@@ -11,16 +11,14 @@ import (
 
 	"queue-bite/internal/config"
 	"queue-bite/internal/config/logger"
-	hostdesk_repo "queue-bite/internal/features/hostdesk/repository"
-	hostdesk "queue-bite/internal/features/hostdesk/service"
-	seatmanager "queue-bite/internal/features/seatmanager/service"
-	servicetime "queue-bite/internal/features/servicetime/service"
-	"queue-bite/internal/features/sse"
-	waitlist_redis "queue-bite/internal/features/waitlist/repository/redis"
-	waitlist "queue-bite/internal/features/waitlist/service"
+	hdimpl "queue-bite/internal/features/hostdesk/repository"
+	hd "queue-bite/internal/features/hostdesk/service"
+	sm "queue-bite/internal/features/seatmanager/service"
+	st "queue-bite/internal/features/servicetime/service"
+	wimpl "queue-bite/internal/features/waitlist/repository/redis"
 	"queue-bite/internal/platform"
 	eb "queue-bite/internal/platform/eventbus"
-	eb_redis "queue-bite/internal/platform/eventbus/redis"
+	ebimpl "queue-bite/internal/platform/eventbus/redis"
 	"queue-bite/internal/server"
 	_ "queue-bite/pkg/env/autoload"
 )
@@ -49,33 +47,9 @@ func run(
 
 	logger := log.NewZerologLogger(stdout, cfg.Dev)
 	redis := platform.NewRedis(cfg, logger)
-
 	eventRegistry := eb.NewEventRegistry()
-	eventbus := eb_redis.NewRedisEventBus(logger, redis.Client, eventRegistry)
-
-	waitlist := waitlist.NewWaitlistService(
-		logger,
-		waitlist_redis.NewRedisWaitlistRepository(logger, redis.Client, cfg.Waitlist.EntityTTL, cfg.Waitlist.ScanChunkSize),
-		servicetime.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
-		eventbus,
-	)
-
-	instantHost := hostdesk.NewInstantServeHostDesk(
-		logger,
-		cfg.HostDesk.InstantServeHostDeskSeatCapacity,
-		hostdesk_repo.NewInMemoryHostDeskRepository(logger),
-		eventbus,
-	)
-
-	seatManager := seatmanager.NewSeatManager(
-		logger,
-		eventbus,
-		waitlist,
-		instantHost,
-		seatmanager.NewOrderedSeatingStrategy(waitlist),
-	)
-
-	sseManager := sse.NewServerSentEvent(logger, eventbus)
+	eventbus := ebimpl.NewRedisEventBus(logger, redis.Client, eventRegistry)
+	instantHost := hd.NewInstantServeHostDesk(logger, cfg.HostDesk.InstantServeHostDeskSeatCapacity, hdimpl.NewInMemoryHostDeskRepository(logger), eventbus)
 
 	server := server.NewServer(
 		cfg,
@@ -83,23 +57,12 @@ func run(
 		redis,
 		eventRegistry,
 		eventbus,
-		waitlist,
+		st.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
+		wimpl.NewRedisWaitlistRepository(logger, redis.Client, cfg.Waitlist.EntityTTL, cfg.Waitlist.ScanChunkSize),
 		instantHost,
-		seatManager,
-		sseManager,
+		sm.NewOrderedSeatingStrategy,
 	)
-	seatManagerError := make(chan error, 1)
 	serverError := make(chan error, 1)
-
-	go func() {
-		if err := seatManager.WatchSeatVacancy(ctx); err != nil {
-			logger.LogErr(log.Server, err, "failed to start seat manager")
-			seatManagerError <- fmt.Errorf("failed to start seat manager: %w", err)
-			return
-		}
-
-		seatManagerError <- nil
-	}()
 
 	go func() {
 		logger.LogInfo(log.Server, "starting server", "addr", server.Addr)
@@ -114,15 +77,11 @@ func run(
 	}()
 
 	select {
-	case err := <-seatManagerError:
-		return err
 	case err := <-serverError:
-		seatManager.UnwatchSeatVacancy(ctx)
 		return err
 	case <-ctx.Done():
 		logger.LogInfo(log.Server, "shutting down server gracefully, press <C-c> again to force")
-
-		seatManager.UnwatchSeatVacancy(ctx)
+		// seatManager.UnwatchSeatVacancy(ctx)
 		sctx, stop := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 		defer stop()
 

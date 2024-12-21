@@ -21,10 +21,21 @@ import (
 
 var WAITLIST = "waitlist"
 
+type QueuedPartyProvider interface {
+
+	// GetQueuedParties returns a channel that streams parties currently in the queue.
+	// Parties are yielded in their queue order (FIFO).
+	// The channel is closed when all parties have been streamed or context is cancelled.
+	// This method allows for efficient iteration over large queues.
+	GetQueuedParties(ctx context.Context) (<-chan *domain.QueuedParty, error)
+}
+
 // Waitlist provides operations for managing a waiting queue.
 // It handles party joining, leaving, and status queries while maintaining
 // wait time calculations and queue positions.
 type Waitlist interface {
+	QueuedPartyProvider
+
 	// HasPartyExists return if a party in waitlist queue.
 	HasPartyExists(ctx context.Context, partyID d.PartyID) bool
 
@@ -49,12 +60,6 @@ type Waitlist interface {
 	// Returns nil, nil if the party is not found in the queue.
 	GetQueuedParty(ctx context.Context, partyID d.PartyID) (*domain.QueuedParty, error)
 
-	// GetQueuedParties returns a channel that streams parties currently in the queue.
-	// Parties are yielded in their queue order (FIFO).
-	// The channel is closed when all parties have been streamed or context is cancelled.
-	// This method allows for efficient iteration over large queues.
-	GetQueuedParties(ctx context.Context) (<-chan *domain.QueuedParty, error)
-
 	// HandlePartyReady handle the event of party ready
 	// if the queued party status is not waiting, throws ErrInvalidStateTransition
 	HandlePartyReady(ctx context.Context, partyID d.PartyID) error
@@ -72,7 +77,7 @@ func NewWaitlistService(
 	repo repository.WaitlistRepositoy,
 	estimator servicetime.ServiceTimeEstimator,
 	eventbus eventbus.EventBus,
-) *waitlistService {
+) Waitlist {
 	return &waitlistService{
 		logger:           logger,
 		repo:             repo,

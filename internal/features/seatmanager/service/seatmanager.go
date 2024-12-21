@@ -7,7 +7,6 @@ import (
 	log "queue-bite/internal/config/logger"
 	hdd "queue-bite/internal/features/hostdesk/domain"
 	hostdesk "queue-bite/internal/features/hostdesk/service"
-	"queue-bite/internal/features/seatmanager/domain"
 	w "queue-bite/internal/features/waitlist/domain"
 	waitlist "queue-bite/internal/features/waitlist/service"
 	"queue-bite/internal/platform/eventbus"
@@ -29,7 +28,7 @@ type seatManager struct {
 	eventbus eventbus.EventBus
 	waitlist waitlist.Waitlist
 	hostdesk hostdesk.HostDesk
-	strategy domain.SeatingStrategy
+	strategy SeatingStrategy
 
 	// channel for cleanup
 	stopCh chan struct{}
@@ -40,7 +39,7 @@ func NewSeatManager(
 	eventbus eventbus.EventBus,
 	waitlist waitlist.Waitlist,
 	hostdesk hostdesk.HostDesk,
-	strategy domain.SeatingStrategy,
+	strategy SeatingStrategy,
 ) *seatManager {
 	return &seatManager{
 		logger:   logger,
@@ -48,26 +47,16 @@ func NewSeatManager(
 		waitlist: waitlist,
 		hostdesk: hostdesk,
 		strategy: strategy,
-
-		stopCh: make(chan struct{}),
 	}
 }
 
 func (m *seatManager) WatchSeatVacancy(ctx context.Context) error {
-	m.logger.LogDebug(SEAT_MANAGER, "Seat manager start observing the seat vacancy")
-
 	m.eventbus.Subscribe(hdd.TopicPartyPreserved, m.handleSeatPreservedEvent)
-
-	go m.checkAndAssignSeating(ctx)
-
-	m.processEvents(ctx)
 	return nil
 }
 
 func (m *seatManager) UnwatchSeatVacancy(ctx context.Context) error {
 	m.logger.LogDebug(SEAT_MANAGER, "Seat manager stop observing")
-
-	close(m.stopCh)
 	return nil
 }
 
@@ -100,17 +89,4 @@ func (m *seatManager) processAvailableCapacity(ctx context.Context, availableSea
 		}
 	}
 	return nil
-}
-
-func (m *seatManager) processEvents(ctx context.Context) {
-	for {
-		select {
-		case <-m.stopCh:
-			m.logger.LogDebug(SEAT_MANAGER, "Stopping seat vacancy monitoring")
-			return
-		case <-ctx.Done():
-			m.logger.LogDebug(SEAT_MANAGER, "Context cancelled, stopping monitoring")
-			return
-		}
-	}
 }
