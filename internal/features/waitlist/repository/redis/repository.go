@@ -42,6 +42,10 @@ func NewRedisWaitlistRepository(logger log.Logger, client *redis.Client, ttl tim
 	}
 }
 
+func (r *redisWaitlistRepository) HasParty(ctx context.Context, partyID d.PartyID) bool {
+	return r.client.Exists(ctx, r.keys.partyDetails(partyID)).Val() == int64(1)
+}
+
 func (r *redisWaitlistRepository) AddParty(ctx context.Context, party *domain.QueuedParty) (*domain.QueuedParty, error) {
 	id := party.ID
 	redisParty := newRedisQueuedParty(party)

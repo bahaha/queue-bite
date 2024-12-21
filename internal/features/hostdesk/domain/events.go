@@ -3,22 +3,20 @@ package domain
 import (
 	d "queue-bite/internal/domain"
 	"queue-bite/internal/platform/eventbus"
-	"time"
 )
 
-type PartyReadyEvent struct {
+type SeatsPreservedEvent struct {
 	PartyID d.PartyID
-	ReadyAt time.Time
 }
 
-func (e PartyReadyEvent) Topic() string {
-	return TopicPartyReady
+func (e SeatsPreservedEvent) Topic() string {
+	return TopicPartyPreserved
 }
 
-func (e PartyReadyEvent) NewEvent() eventbus.Event {
-	return &PartyReadyEvent{}
+func (e SeatsPreservedEvent) NewEvent() eventbus.Event {
+	return &SeatsPreservedEvent{}
 }
 
 const (
-	TopicPartyReady = "hd.party.ready"
+	TopicPartyPreserved = "hd.party.preserved"
 )

@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	sse "queue-bite/internal/features/sse/handler"
 	waitlist "queue-bite/internal/features/waitlist/handler"
 	"queue-bite/internal/platform"
 	"queue-bite/pkg/utils"
@@ -33,8 +34,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 		cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
 
 		r.Get("/", vitrineHandlers.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty))
-		r.Post("/join", waitlistHandlers.HandleJoinWaitlist(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
+		r.Post("/join", waitlistHandlers.HandleJoinWaitlist(s.logger, s.hostdesk, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
 	})
+
+	r.Get("/sse/waitlist/{partyID}", sse.HandleQueuedPartyServerSentEventConn(s.logger, s.sse, s.waitlist))
+	r.Get("/sse/ready/{partyID}", sse.ManuallyEvaluateNextQueuedParty(s.sse))
 
 	return r
 }

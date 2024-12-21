@@ -4,13 +4,13 @@ import (
 	"context"
 
 	d "queue-bite/internal/domain"
-	"queue-bite/internal/features/hostdesk/domain"
+	w "queue-bite/internal/features/waitlist/domain"
 )
 
 type HostDesk interface {
 	GetCurrentCapacity(ctx context.Context) (int, error)
 
-	NotifyPartyReady(ctx context.Context, partyID d.PartyID) error
+	NotifyPartyReady(ctx context.Context, party *w.QueuedParty) error
 
-	GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error)
+	PreserveSeats(ctx context.Context, partyID d.PartyID, seats int) (bool, error)
 }

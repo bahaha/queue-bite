@@ -1,6 +1,7 @@
 package view
 
 import (
+	"fmt"
 	"queue-bite/internal/features/waitlist/domain"
 	"strconv"
 	"time"
@@ -18,9 +19,10 @@ templ QueuedParty(props *QueuedPartyProps) {
 		<li><div>PartyName</div><div>{ props.Name }</div></li>
 		<li><div>PartySize</div><div>{ strconv.Itoa(props.Size) }</div></li>
 		<li><div>RemainingWaitTime</div><div>{ props.RemainingWaitTime.String() }</div></li>
-		<li><div>Status</div><div>{ string(props.Status) }</div></li>
 		if props.ReadyForSeating {
 			<li><div>ReadyForSeating</div><div>Check-in</div></li>
+		} else {
+			<li><div>Status</div><div hx-ext="sse" sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) } sse-swap="notify:party:ready">{ string(props.Status) }</div></li>
 		}
 	</ul>
 }

@@ -14,57 +14,34 @@ import (
 var INMEMORY_HOSTDESK = "hostdesk/in-memory"
 
 type InMemoryHostDeskRepository struct {
-	logger        log.Logger
-	state         map[d.PartyID]*domain.PartyServiceState
-	totalOccupied int
-	mu            sync.RWMutex
+	logger log.Logger
+	state  map[d.PartyID]*domain.PartyServiceState
+	mu     sync.RWMutex
+
+	totalOccupied  int
+	totalPreserved int
 }
 
 func NewInMemoryHostDeskRepository(logger log.Logger) *InMemoryHostDeskRepository {
 	return &InMemoryHostDeskRepository{
-		logger:        logger,
-		state:         make(map[d.PartyID]*domain.PartyServiceState),
-		totalOccupied: 0,
+		logger: logger,
+		state:  make(map[d.PartyID]*domain.PartyServiceState),
+
+		totalOccupied:  0,
+		totalPreserved: 0,
 	}
-}
-
-func (r *InMemoryHostDeskRepository) OccupySeats(ctx context.Context, partyID d.PartyID, seats int) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.state[partyID]; exists {
-		return domain.ErrPartyAlreadySeated
-	}
-
-	r.state[partyID] = &domain.PartyServiceState{
-		ID:            partyID,
-		SeatsOccupied: seats,
-		Status:        domain.PartySeated,
-	}
-	r.totalOccupied += seats
-	return nil
-}
-
-func (r *InMemoryHostDeskRepository) ReleaseSeats(ctx context.Context, partyID d.PartyID) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	party, exists := r.state[partyID]
-	if !exists {
-		err := domain.ErrPartyNotFound
-		r.logger.LogErr(INMEMORY_HOSTDESK, err, "could not release seats for party", "party id", partyID)
-		return err
-	}
-
-	r.totalOccupied -= party.SeatsOccupied
-	delete(r.state, partyID)
-	return nil
 }
 
 func (r *InMemoryHostDeskRepository) GetOccupiedSeats(ctx context.Context) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.totalOccupied, nil
+}
+
+func (r *InMemoryHostDeskRepository) GetPreservedSeats(ctx context.Context) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.totalPreserved, nil
 }
 
 func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error) {
@@ -78,30 +55,38 @@ func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, p
 	return state, nil
 }
 
+func (r *InMemoryHostDeskRepository) CreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.state[state.ID]; exists {
+		return domain.ErrPartyAlreadyExists
+	}
+
+	r.state[state.ID] = state
+	return nil
+}
+
 func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context, partyID d.PartyID, nextState *domain.PartyServiceState) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	currentState, exists := r.state[partyID]
-	if !exists && nextState.Status != domain.SeatReady {
-		err := domain.ErrPartyNotFound
-		r.logger.LogErr(INMEMORY_HOSTDESK, err, "could not update service state of party", "party id", partyID)
+	if !exists {
+		r.state[partyID] = nextState
+		return nil
+	}
+
+	oldSeats := currentState.SeatsCount
+	err := copier.CopyWithOption(r.state[partyID], nextState, copier.Option{
+		IgnoreEmpty: true,
+	})
+	if err != nil {
 		return err
 	}
 
-	if currentState != nil {
-		oldSeats := currentState.SeatsOccupied
-		err := copier.CopyWithOption(r.state[partyID], nextState, copier.Option{
-			IgnoreEmpty: true,
-		})
-		if err != nil {
-			return err
-		}
-
-		// Update capacity if seats changed
-		if nextState.SeatsOccupied != 0 && nextState.SeatsOccupied != oldSeats {
-			r.totalOccupied = r.totalOccupied - oldSeats + nextState.SeatsOccupied
-		}
+	if nextState.SeatsCount != 0 && nextState.SeatsCount != oldSeats {
+		r.totalOccupied = r.totalOccupied - oldSeats + nextState.SeatsCount
 	}
 
 	return nil

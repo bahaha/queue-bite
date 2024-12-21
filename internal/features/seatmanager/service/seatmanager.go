@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"context"
@@ -44,6 +44,8 @@ func NewSeatManager(
 	strategy domain.SeatingStrategy,
 ) *seatManager {
 
+	eventRegistry.Register(domain.TopicEvaluateNextParty, &domain.EvaluateNextPartyEvent{})
+
 	return &seatManager{
 		logger:   logger,
 		eventbus: eventbus,
@@ -58,7 +60,8 @@ func NewSeatManager(
 func (m *seatManager) WatchSeatVacancy(ctx context.Context) error {
 	m.logger.LogDebug(SEAT_MANAGER, "Seat manager start observing the seat vacancy")
 
-	m.eventbus.Subscribe(hdd.TopicPartyReady, m.handlePartyReady)
+	m.eventbus.Subscribe(hdd.TopicPartyPreserved, m.handleSeatPreservedEvent)
+	m.eventbus.Subscribe(domain.TopicEvaluateNextParty, m.handleEvaluateNextParty)
 
 	go m.checkAndAssignSeating(ctx)
 
@@ -76,24 +79,15 @@ func (m *seatManager) UnwatchSeatVacancy(ctx context.Context) error {
 func (m *seatManager) checkAndAssignSeating(ctx context.Context) error {
 	capacity, err := m.hostdesk.GetCurrentCapacity(ctx)
 	if err != nil {
-		m.logger.LogErr(SEAT_MANAGER, err, "get capacity of hostdesk failed on seat manager startup")
+		m.logger.LogErr(SEAT_MANAGER, err, "get capacity of hostdesk failed")
 		return fmt.Errorf("get capacity of hostdesk failed: %w", err)
 	}
 
 	if capacity > 0 {
 		if err := m.processAvailableCapacity(ctx, capacity); err != nil {
-			m.logger.LogErr(SEAT_MANAGER, err, "process available capacity on seat manager startup")
+			m.logger.LogErr(SEAT_MANAGER, err, "process available capacity")
+			return err
 		}
-	}
-	return nil
-}
-
-func (m *seatManager) handlePartyReady(ctx context.Context, event eventbus.Event) error {
-	e := event.(*hdd.PartyReadyEvent)
-
-	if err := m.waitlist.HandlePartyReady(ctx, e.PartyID, e.ReadyAt); err != nil {
-		m.logger.LogErr(SEAT_MANAGER, err, "failed to make party ready", "event", e)
-		return err
 	}
 
 	return nil
@@ -106,7 +100,7 @@ func (m *seatManager) processAvailableCapacity(ctx context.Context, availableSea
 	}
 
 	if nextParty != nil {
-		if err := m.hostdesk.NotifyPartyReady(ctx, nextParty.ID); err != nil {
+		if err := m.hostdesk.NotifyPartyReady(ctx, nextParty); err != nil {
 			return err
 		}
 	}

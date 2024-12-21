@@ -12,6 +12,7 @@ import (
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
+	hostdesk "queue-bite/internal/features/hostdesk/service"
 	"queue-bite/internal/features/waitlist/domain"
 	"queue-bite/internal/features/waitlist/handler/view"
 	fm "queue-bite/pkg/form"
@@ -21,6 +22,7 @@ import (
 
 func (h *WaitlistHandler) HandleJoinWaitlist(
 	logger log.Logger,
+	hostdesk hostdesk.HostDesk,
 	validate *validator.Validate,
 	uni *ut.UniversalTranslator,
 	cookieManager *session.CookieManager,
@@ -44,7 +46,7 @@ func (h *WaitlistHandler) HandleJoinWaitlist(
 
 		party := d.NewParty(payload.PartyName, payload.PartySize)
 
-		queuedParty, err := h.waitlist.JoinQueue(r.Context(), party)
+		queuedParty, err := h.waitlist.JoinQueue(r.Context(), hostdesk, party)
 		if err != nil {
 			handleJoinError(logger, w, err)
 			return
@@ -109,9 +111,5 @@ func setQueuedPartyCookie(w http.ResponseWriter, cookieManager *session.CookieMa
 }
 
 func renderQueuedParty(w http.ResponseWriter, r *http.Request, party *domain.QueuedParty) {
-	props := &view.QueuedPartyProps{}
-	copier.Copy(props, party)
-	// TODO derived props
-	props.ReadyForSeating = false
-	templ.Handler(view.QueuedParty(props)).ServeHTTP(w, r)
+	templ.Handler(view.QueuedParty(view.NewQueuedPartyProps(party))).ServeHTTP(w, r)
 }

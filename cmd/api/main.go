@@ -15,6 +15,7 @@ import (
 	hostdesk "queue-bite/internal/features/hostdesk/service"
 	seatmanager "queue-bite/internal/features/seatmanager/service"
 	servicetime "queue-bite/internal/features/servicetime/service"
+	"queue-bite/internal/features/sse"
 	waitlist_redis "queue-bite/internal/features/waitlist/repository/redis"
 	waitlist "queue-bite/internal/features/waitlist/service"
 	"queue-bite/internal/platform"
@@ -56,6 +57,7 @@ func run(
 		logger,
 		waitlist_redis.NewRedisWaitlistRepository(logger, redis.Client, cfg.Waitlist.EntityTTL, cfg.Waitlist.ScanChunkSize),
 		servicetime.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
+		eventbus,
 	)
 
 	instantHost := hostdesk.NewInstantServeHostDesk(
@@ -75,6 +77,12 @@ func run(
 		seatmanager.NewOrderedSeatingStrategy(waitlist),
 	)
 
+	sseManager := sse.NewServerSentEvent(
+		logger,
+		eventbus,
+		eventRegistry,
+	)
+
 	server := server.NewServer(
 		cfg,
 		logger,
@@ -84,6 +92,7 @@ func run(
 		waitlist,
 		instantHost,
 		seatManager,
+		sseManager,
 	)
 	seatManagerError := make(chan error, 1)
 	serverError := make(chan error, 1)

@@ -10,9 +10,12 @@ import (
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
+	hostdesk "queue-bite/internal/features/hostdesk/service"
 	servicetime "queue-bite/internal/features/servicetime/service"
+	"queue-bite/internal/features/sse"
 	"queue-bite/internal/features/waitlist/domain"
 	"queue-bite/internal/features/waitlist/repository"
+	"queue-bite/internal/platform/eventbus"
 	"queue-bite/pkg/utils"
 )
 
@@ -22,11 +25,14 @@ var WAITLIST = "waitlist"
 // It handles party joining, leaving, and status queries while maintaining
 // wait time calculations and queue positions.
 type Waitlist interface {
+	// HasPartyExists return if a party in waitlist queue.
+	HasPartyExists(ctx context.Context, partyID d.PartyID) bool
+
 	// JoinQueue adds a new party to the waitlist queue.
 	// It calculates estimated service duration and waiting time,
 	// assigns a queue position, and returns the queued party information.
 	// Returns ErrPartyAlreadyQueued if the party is already in queue.
-	JoinQueue(ctx context.Context, party *d.Party) (*domain.QueuedParty, error)
+	JoinQueue(ctx context.Context, hostdesk hostdesk.HostDesk, party *d.Party) (*domain.QueuedParty, error)
 
 	// LeaveQueue removes a party from the waitlist queue.
 	// This updates wait times for remaining parties in the queue.
@@ -51,32 +57,51 @@ type Waitlist interface {
 
 	// HandlePartyReady handle the event of party ready
 	// if the queued party status is not waiting, throws ErrInvalidStateTransition
-	HandlePartyReady(ctx context.Context, partyID d.PartyID, readyAt time.Time) error
+	HandlePartyReady(ctx context.Context, partyID d.PartyID) error
 }
 
 type waitlistService struct {
 	logger           log.Logger
 	repo             repository.WaitlistRepositoy
+	eventbus         eventbus.EventBus
 	serviceEstimator servicetime.ServiceTimeEstimator
 }
 
-func NewWaitlistService(logger log.Logger, repo repository.WaitlistRepositoy, estimator servicetime.ServiceTimeEstimator) *waitlistService {
+func NewWaitlistService(
+	logger log.Logger,
+	repo repository.WaitlistRepositoy,
+	estimator servicetime.ServiceTimeEstimator,
+	eventbus eventbus.EventBus,
+) *waitlistService {
 	return &waitlistService{
 		logger:           logger,
 		repo:             repo,
+		eventbus:         eventbus,
 		serviceEstimator: estimator,
 	}
 }
 
-func (s *waitlistService) JoinQueue(ctx context.Context, party *d.Party) (*domain.QueuedParty, error) {
+func (s *waitlistService) HasPartyExists(ctx context.Context, partyID d.PartyID) bool {
+	return s.repo.HasParty(ctx, partyID)
+}
+
+func (s *waitlistService) JoinQueue(ctx context.Context, hostdesk hostdesk.HostDesk, party *d.Party) (*domain.QueuedParty, error) {
+	party.ID = d.PartyID(utils.GenerateID())
+	party.Status = d.PartyStatusWaiting
+	ok, err := hostdesk.PreserveSeats(ctx, party.ID, party.Size)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		party.Status = d.PartyStatusReady
+	}
+
 	serviceDuration, err := s.serviceEstimator.EstimateServiceTime(ctx, party)
 	if err != nil {
 		return nil, err
 	}
 	party.EstimatedServiceTime = serviceDuration.Duration
 
-	party.ID = d.PartyID(utils.GenerateID())
-	party.Status = d.PartyStatusWaiting
 	queuedParty := &domain.QueuedParty{}
 	copier.Copy(queuedParty, party)
 	queuedParty.JoinedAt = time.Now()
@@ -114,7 +139,7 @@ func (s *waitlistService) GetQueuedParties(ctx context.Context) (<-chan *domain.
 	return s.repo.ScanParties(ctx)
 }
 
-func (s *waitlistService) HandlePartyReady(ctx context.Context, partyID d.PartyID, readyAt time.Time) error {
+func (s *waitlistService) HandlePartyReady(ctx context.Context, partyID d.PartyID) error {
 	queuedParty, err := s.repo.GetPartyDetails(ctx, partyID)
 	if err != nil {
 		return err
@@ -135,5 +160,7 @@ func (s *waitlistService) HandlePartyReady(ctx context.Context, partyID d.PartyI
 	if err = s.repo.UpdatePartyStatus(ctx, partyID, d.PartyStatusReady); err != nil {
 		s.logger.LogErr("waitlist", err, "failed to make party ready", "party id", partyID)
 	}
+
+	s.eventbus.Publish(ctx, &sse.NotifyPartyReadyEvent{PartyID: partyID})
 	return nil
 }

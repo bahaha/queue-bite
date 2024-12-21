@@ -9,6 +9,9 @@ import (
 // WaitlistRepository defines the persistence operations for waitlist management.
 // It handles the storage and retrieval of queued parties and their associated data.
 type WaitlistRepositoy interface {
+	// HasParty return if a party is in waitlist queue
+	HasParty(ctx context.Context, partyID d.PartyID) bool
+
 	// AddParty stores a new party in the queue and calculates their position
 	// and waiting time based on parties ahead of them.
 	AddParty(ctx context.Context, party *domain.QueuedParty) (*domain.QueuedParty, error)

@@ -5,19 +5,28 @@ import (
 	"time"
 )
 
-type PartyStatus string
+type SeatStatus string
 
 const (
-	SeatReady     PartyStatus = "ready"
-	PartyNotified PartyStatus = "notified"
-	PartySeated   PartyStatus = "seated"
-	PartyServing  PartyStatus = "serving"
+	SeatAvailable SeatStatus = "available"
+	SeatPreserved SeatStatus = "preserved"
+	SeatOccupied  SeatStatus = "occupied"
 )
 
 type PartyServiceState struct {
-	ID             domain.PartyID
-	Status         PartyStatus
-	NotifiedAt     time.Time
-	ServiceStartAt time.Time
-	SeatsOccupied  int
+	ID           domain.PartyID
+	Status       SeatStatus
+	SeatsCount   int
+	PreservedAt  time.Time
+	CheckedInAt  time.Time
+	ServiceEndAt time.Time
+}
+
+func NewPartyServiceFromPreserve(partyID domain.PartyID, seats int) *PartyServiceState {
+	return &PartyServiceState{
+		ID:          partyID,
+		Status:      SeatPreserved,
+		SeatsCount:  seats,
+		PreservedAt: time.Now(),
+	}
 }
