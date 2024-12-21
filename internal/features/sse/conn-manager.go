@@ -31,9 +31,7 @@ type Client struct {
 	Done    chan struct{}
 }
 
-func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus, eventRegistry *eventbus.EventRegistry) *sse {
-	eventRegistry.Register(TopicNotifyPartyReady, &NotifyPartyReadyEvent{})
-
+func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus) *sse {
 	svc := &sse{
 		logger:   logger,
 		eventbus: eventbus,

@@ -38,14 +38,10 @@ type seatManager struct {
 func NewSeatManager(
 	logger log.Logger,
 	eventbus eventbus.EventBus,
-	eventRegistry *eventbus.EventRegistry,
 	waitlist waitlist.Waitlist,
 	hostdesk hostdesk.HostDesk,
 	strategy domain.SeatingStrategy,
 ) *seatManager {
-
-	eventRegistry.Register(domain.TopicEvaluateNextParty, &domain.EvaluateNextPartyEvent{})
-
 	return &seatManager{
 		logger:   logger,
 		eventbus: eventbus,
@@ -61,7 +57,6 @@ func (m *seatManager) WatchSeatVacancy(ctx context.Context) error {
 	m.logger.LogDebug(SEAT_MANAGER, "Seat manager start observing the seat vacancy")
 
 	m.eventbus.Subscribe(hdd.TopicPartyPreserved, m.handleSeatPreservedEvent)
-	m.eventbus.Subscribe(domain.TopicEvaluateNextParty, m.handleEvaluateNextParty)
 
 	go m.checkAndAssignSeating(ctx)
 

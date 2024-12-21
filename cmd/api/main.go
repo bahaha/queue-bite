@@ -65,23 +65,17 @@ func run(
 		cfg.HostDesk.InstantServeHostDeskSeatCapacity,
 		hostdesk_repo.NewInMemoryHostDeskRepository(logger),
 		eventbus,
-		eventRegistry,
 	)
 
 	seatManager := seatmanager.NewSeatManager(
 		logger,
 		eventbus,
-		eventRegistry,
 		waitlist,
 		instantHost,
 		seatmanager.NewOrderedSeatingStrategy(waitlist),
 	)
 
-	sseManager := sse.NewServerSentEvent(
-		logger,
-		eventbus,
-		eventRegistry,
-	)
+	sseManager := sse.NewServerSentEvent(logger, eventbus)
 
 	server := server.NewServer(
 		cfg,

@@ -26,10 +26,7 @@ func NewInstantServeHostDesk(
 	totalSeats int,
 	repo repository.HostDeskRepository,
 	eventbus eventbus.EventBus,
-	eventRegistry *eventbus.EventRegistry,
 ) *InstantServeHostDesk {
-
-	eventRegistry.Register(domain.TopicPartyPreserved, domain.SeatsPreservedEvent{})
 
 	return &InstantServeHostDesk{
 		logger:     logger,

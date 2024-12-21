@@ -67,6 +67,8 @@ func NewServer(
 		redis: platform.NewRedis(cfg, logger),
 	}
 
+	NewServer.RegisterEvents(eventRegistry)
+
 	// Declare Server config
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", NewServer.cfg.Server.Port),
