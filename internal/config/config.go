@@ -35,6 +35,9 @@ type Config struct {
 	HostDesk struct {
 		InstantServeHostDeskSeatCapacity int `env:"INSTANT_SERVE_HOST_DESK_SEAT_CAPACITY" default:"12"`
 	}
+	SeatManager struct {
+		PreserveMaxRetries int `env:"PRESERVE_SEAT_MAX_RETRIES" default:"3"`
+	}
 }
 
 func LoadEnvConfig(getenv func(string) string) (*Config, error) {

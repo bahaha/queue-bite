@@ -59,8 +59,7 @@ func NewServer(
 	sseManager := sse.NewServerSentEvent(logger, eventbus)
 	waitlist := ws.NewWaitlistService(logger, waitlistRepo, serviceTimeEstimator, eventbus)
 	partySelection := partySelectionStrategyFactory(waitlist)
-
-	seatManager := sms.NewSeatManager(logger, eventbus, waitlist, hostdesk, partyProcessingStrategy, partySelection)
+	seatManager := sms.NewSeatManager(logger, eventbus, waitlist, hostdesk, partyProcessingStrategy, partySelection, cfg.SeatManager.PreserveMaxRetries)
 
 	NewServer := &Server{
 		cfg:           cfg,

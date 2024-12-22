@@ -8,11 +8,11 @@ import (
 )
 
 type HostDesk interface {
-	GetCurrentCapacity(ctx context.Context) (int, error)
+	GetCurrentCapacity(ctx context.Context) (int, d.Version, error)
 
 	NotifyPartyReady(ctx context.Context, party *w.QueuedParty) error
 
-	PreserveSeats(ctx context.Context, partyID d.PartyID, seats int) (bool, error)
+	PreserveSeats(ctx context.Context, partyID d.PartyID, seats int, version d.Version) (bool, error)
 
 	ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) (bool, error)
 

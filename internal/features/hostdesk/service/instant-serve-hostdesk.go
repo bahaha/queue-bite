@@ -37,35 +37,22 @@ func NewInstantServeHostDesk(
 	}
 }
 
-func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, error) {
-	occupied, err := h.repo.GetOccupiedSeats(ctx)
+func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, d.Version, error) {
+	totalUsed, version, err := h.repo.GetTotalSeatsInUse(ctx)
 	if err != nil {
-		return h.totalSeats, err
-	}
-	preserved, err := h.repo.GetPreservedSeats(ctx)
-	if err != nil {
-		return h.totalSeats, err
+		return h.totalSeats, version, err
 	}
 
-	return h.totalSeats - occupied - preserved, nil
+	return h.totalSeats - totalUsed, version, nil
 }
 
 func (h *InstantServeHostDesk) NotifyPartyReady(ctx context.Context, party *wld.QueuedParty) error {
-	ok, err := h.PreserveSeats(ctx, party.ID, party.Size)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return domain.ErrInsufficientCapacity
-	}
-
 	h.eventbus.Publish(ctx, &domain.SeatsPreservedEvent{PartyID: party.ID})
 	h.logger.LogDebug(INSTANT_SERVE, "seats preserved, notify party ready", "party id", party.ID)
 	return nil
 }
 
-func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.PartyID, seats int) (bool, error) {
+func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.PartyID, seats int, version d.Version) (bool, error) {
 	curr, err := h.repo.GetPartyServiceState(ctx, partyID)
 	if err != nil {
 		return false, err
@@ -77,7 +64,7 @@ func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.Part
 	}
 
 	state := domain.NewPartyServiceFromPreserve(partyID, seats)
-	err = h.repo.CreatePartyServiceState(ctx, state)
+	err = h.repo.OptimisticCreatePartyServiceState(ctx, state, version)
 
 	if err != nil {
 		return false, err

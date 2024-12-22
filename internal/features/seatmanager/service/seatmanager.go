@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	log "queue-bite/internal/config/logger"
@@ -36,6 +37,8 @@ type seatManager struct {
 	hostdesk   hostdesk.HostDesk
 	processing PartyProcessingStrategy
 	selection  PartySelectionStrategy
+
+	preserveMaxRetries int
 }
 
 func NewSeatManager(
@@ -45,14 +48,16 @@ func NewSeatManager(
 	hostdesk hostdesk.HostDesk,
 	processing PartyProcessingStrategy,
 	selection PartySelectionStrategy,
+	preserveMaxRetries int,
 ) SeatManager {
 	return &seatManager{
-		logger:     logger,
-		eventbus:   eventbus,
-		waitlist:   waitlist,
-		hostdesk:   hostdesk,
-		processing: processing,
-		selection:  selection,
+		logger:             logger,
+		eventbus:           eventbus,
+		waitlist:           waitlist,
+		hostdesk:           hostdesk,
+		processing:         processing,
+		selection:          selection,
+		preserveMaxRetries: preserveMaxRetries,
 	}
 }
 
@@ -67,74 +72,81 @@ func (m *seatManager) UnwatchSeatVacancy(ctx context.Context) error {
 }
 
 func (m *seatManager) ProcessNewParty(ctx context.Context, party *d.Party) (*w.QueuedParty, error) {
-	capacity, err := m.hostdesk.GetCurrentCapacity(ctx)
-	if err != nil {
-		m.logger.LogErr(SEAT_MANAGER, err, "failed to get current capacity")
-		return nil, err
-	}
+	for retries := 0; retries < m.preserveMaxRetries; retries++ {
+		capacity, version, err := m.hostdesk.GetCurrentCapacity(ctx)
+		if err != nil {
+			m.logger.LogErr(SEAT_MANAGER, err, "failed to get current capacity")
+			return nil, err
+		}
 
-	queueStatus, err := m.waitlist.GetQueueStatus(ctx)
-	if err != nil {
-		m.logger.LogErr(SEAT_MANAGER, err, "failed to get current waitlist status")
-		return nil, err
-	}
+		queueStatus, err := m.waitlist.GetQueueStatus(ctx)
+		if err != nil {
+			m.logger.LogErr(SEAT_MANAGER, err, "failed to get current waitlist status")
+			return nil, err
+		}
 
-	seatingCtx := &SeatingContext{
-		SeatsAvailable: capacity >= party.Size,
-		QueueStatus:    queueStatus,
-	}
-	newPartyStatus, shouldPreserve := m.processing.DeterminePartyState(ctx, seatingCtx)
-	m.logger.LogDebug(SEAT_MANAGER, "determine new party should wait or serve", "seating ctx", seatingCtx, "new party stats", newPartyStatus, "should preserve", shouldPreserve)
+		seatingCtx := &SeatingContext{
+			SeatsAvailable: capacity >= party.Size,
+			QueueStatus:    queueStatus,
+		}
+		newPartyStatus, shouldPreserve := m.processing.DeterminePartyState(ctx, seatingCtx)
+		m.logger.LogDebug(SEAT_MANAGER, "determine new party should wait or serve", "seating ctx", seatingCtx, "new party stats", newPartyStatus, "should preserve", shouldPreserve)
 
-	var needReleaseSeats bool
-	defer func() {
-		if needReleaseSeats {
-			_, err := m.hostdesk.ReleasePreservedSeats(ctx, party.ID)
+		var needReleaseSeats bool
+		defer func() {
+			if needReleaseSeats {
+				_, err := m.hostdesk.ReleasePreservedSeats(ctx, party.ID)
+				if err != nil {
+					m.logger.LogErr(SEAT_MANAGER, err, "failed release preserved seats on processing new party")
+				}
+			}
+		}()
+
+		if shouldPreserve {
+			ok, err := m.hostdesk.PreserveSeats(ctx, party.ID, party.Size, version)
 			if err != nil {
-				m.logger.LogErr(SEAT_MANAGER, err, "failed release preserved seats on processing new party")
+				m.logger.LogErr(SEAT_MANAGER, err, "failed preserve seats on processing new party", "retry", retries)
+				if errors.Is(err, d.ErrVersionMismatch) {
+					continue
+				}
+				return nil, domain.ErrPreserveSeats
+			}
+			if !ok {
+				m.logger.LogDebug(SEAT_MANAGER, "could not preserve seats, fallback new party to waitlist queue")
+				newPartyStatus = d.PartyStatusWaiting
 			}
 		}
-	}()
 
-	if shouldPreserve {
-		ok, err := m.hostdesk.PreserveSeats(ctx, party.ID, party.Size)
+		party.Status = newPartyStatus
+		if newPartyStatus == d.PartyStatusServing {
+			queuedParty := &w.QueuedParty{}
+			copier.Copy(queuedParty, party)
+			if err := m.hostdesk.CheckIn(ctx, queuedParty); err == nil {
+				m.logger.LogDebug(SEAT_MANAGER, "start serving immediately", "party", queuedParty)
+				return queuedParty, nil
+			}
+			m.logger.LogErr(SEAT_MANAGER, err, "could not check in immediately when new party joins, fallback to waitlist queue as ready")
+			party.Status = d.PartyStatusReady
+		}
+
+		queuedParty, err := m.waitlist.JoinQueue(ctx, party)
 		if err != nil {
-			m.logger.LogErr(SEAT_MANAGER, err, "failed preserve seats on processing new party")
-			return nil, domain.ErrPreserveSeats
+			if party.Status == d.PartyStatusReady {
+				m.logger.LogErr(SEAT_MANAGER, err, "could not join waitlist as ready to serve")
+				needReleaseSeats = true
+			}
+			return nil, domain.ErrJoinWaitlist
 		}
-		if !ok {
-			m.logger.LogDebug(SEAT_MANAGER, "could not preserve seats, fallback new party to waitlist queue")
-			newPartyStatus = d.PartyStatusWaiting
-		}
+
+		m.logger.LogDebug(SEAT_MANAGER, "party will join waitlist queue", "status", party.Status, "party", queuedParty)
+		return queuedParty, nil
 	}
 
-	party.Status = newPartyStatus
-	if newPartyStatus == d.PartyStatusServing {
-		queuedParty := &w.QueuedParty{}
-		copier.Copy(queuedParty, party)
-		if err := m.hostdesk.CheckIn(ctx, queuedParty); err == nil {
-			m.logger.LogDebug(SEAT_MANAGER, "start serving immediately", "party", queuedParty)
-			return queuedParty, nil
-		}
-		m.logger.LogErr(SEAT_MANAGER, err, "could not check in immediately when new party joins, fallback to waitlist queue as ready")
-		party.Status = d.PartyStatusReady
-	}
-
-	queuedParty, err := m.waitlist.JoinQueue(ctx, party)
-	if err != nil {
-		if party.Status == d.PartyStatusReady {
-			m.logger.LogErr(SEAT_MANAGER, err, "could not join waitlist as ready to serve")
-			needReleaseSeats = true
-		}
-		return nil, domain.ErrJoinWaitlist
-	}
-
-	m.logger.LogDebug(SEAT_MANAGER, "party will join waitlist queue", "status", party.Status, "party", queuedParty)
-	return queuedParty, nil
+	return nil, d.ErrTooManyOptimisticLockRetries
 }
 
 func (m *seatManager) checkAndAssignSeating(ctx context.Context) error {
-	capacity, err := m.hostdesk.GetCurrentCapacity(ctx)
+	capacity, _, err := m.hostdesk.GetCurrentCapacity(ctx)
 	if err != nil {
 		m.logger.LogErr(SEAT_MANAGER, err, "get capacity of hostdesk failed")
 		return fmt.Errorf("get capacity of hostdesk failed: %w", err)

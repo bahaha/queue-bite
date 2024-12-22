@@ -18,6 +18,7 @@ type InMemoryHostDeskRepository struct {
 	state  map[d.PartyID]*domain.PartyServiceState
 	mu     sync.RWMutex
 
+	version        d.Version
 	totalOccupied  int
 	totalPreserved int
 }
@@ -27,6 +28,7 @@ func NewInMemoryHostDeskRepository(logger log.Logger) HostDeskRepository {
 		logger: logger,
 		state:  make(map[d.PartyID]*domain.PartyServiceState),
 
+		version:        d.Version(0),
 		totalOccupied:  0,
 		totalPreserved: 0,
 	}
@@ -44,6 +46,12 @@ func (r *InMemoryHostDeskRepository) GetPreservedSeats(ctx context.Context) (int
 	return r.totalPreserved, nil
 }
 
+func (r *InMemoryHostDeskRepository) GetTotalSeatsInUse(ctx context.Context) (int, d.Version, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.totalOccupied + r.totalPreserved, r.version, nil
+}
+
 func (r *InMemoryHostDeskRepository) ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -58,6 +66,7 @@ func (r *InMemoryHostDeskRepository) ReleasePreservedSeats(ctx context.Context, 
 
 	r.totalPreserved += state.SeatsCount
 	delete(r.state, partyID)
+	r.version++
 	r.logger.LogDebug(INMEMORY_HOSTDESK, "release preserved seats", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
 	return nil
 }
@@ -77,7 +86,7 @@ func (r *InMemoryHostDeskRepository) TransferToOccupied(ctx context.Context, par
 	r.totalPreserved -= state.SeatsCount
 	r.totalOccupied += state.SeatsCount
 	state.Status = domain.SeatOccupied
-
+	r.version++
 	r.logger.LogDebug(INMEMORY_HOSTDESK, "transfer preserved seats to occupied", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
 	return nil
 }
@@ -94,11 +103,19 @@ func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, p
 }
 
 func (r *InMemoryHostDeskRepository) CreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState) error {
+	return r.OptimisticCreatePartyServiceState(ctx, state, r.version)
+}
+
+func (r *InMemoryHostDeskRepository) OptimisticCreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState, version d.Version) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.state[state.ID]; exists {
 		return domain.ErrPartyAlreadyExists
+	}
+
+	if r.version != version {
+		return d.ErrVersionMismatch
 	}
 
 	r.state[state.ID] = state
@@ -108,6 +125,7 @@ func (r *InMemoryHostDeskRepository) CreatePartyServiceState(ctx context.Context
 	case domain.SeatPreserved:
 		r.totalPreserved += state.SeatsCount
 	}
+	r.version++
 	r.logger.LogDebug(INMEMORY_HOSTDESK, "start service for party", "party id", state.ID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
 	return nil
 }
@@ -118,8 +136,7 @@ func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context
 
 	currentState, exists := r.state[partyID]
 	if !exists {
-		r.state[partyID] = nextState
-		return nil
+		return domain.ErrPartyNotFound
 	}
 
 	oldSeats := currentState.SeatsCount
@@ -132,6 +149,7 @@ func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context
 
 	if nextState.SeatsCount != 0 && nextState.SeatsCount != oldSeats {
 		r.totalOccupied = r.totalOccupied - oldSeats + nextState.SeatsCount
+		r.version++
 	}
 
 	return nil
