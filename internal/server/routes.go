@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	sm "queue-bite/internal/features/seatmanager/handler"
 	sse "queue-bite/internal/features/sse/handler"
-	waitlist "queue-bite/internal/features/waitlist/handler"
 	"queue-bite/internal/platform"
 	"queue-bite/pkg/utils"
 )
@@ -29,16 +29,15 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Get("/healthz", healthHandler(s.redis))
 
 	r.Route("/waitlist", func(r chi.Router) {
-		waitlistHandlers := waitlist.NewWaitlistHandler(s.waitlist)
-		vitrineHandlers := waitlist.NewVitrineHandler(s.waitlist)
+		seatManagerHandler := sm.NewSeatManagerHandler()
+		vitrineHandler := sm.NewVitrineHandler()
 		cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
 
-		r.Get("/", vitrineHandlers.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty))
-		r.Post("/join", waitlistHandlers.HandleJoinWaitlist(s.logger, s.hostdesk, s.validate, s.translators, s.cookieManager, cookieQueuedParty))
+		r.Get("/", vitrineHandler.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.waitlist))
+		r.Post("/join", seatManagerHandler.HandleNewPartyArrival(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty, s.seatmanager))
 	})
 
 	r.Get("/sse/waitlist/{partyID}", sse.HandleQueuedPartyServerSentEventConn(s.logger, s.sse, s.waitlist))
-	r.Get("/sse/ready/{partyID}", sse.ManuallyEvaluateNextQueuedParty(s.sse))
 
 	return r
 }

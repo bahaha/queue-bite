@@ -30,3 +30,13 @@ func NewPartyServiceFromPreserve(partyID domain.PartyID, seats int) *PartyServic
 		PreservedAt: time.Now(),
 	}
 }
+
+func NewPartyServiceImmediately(partyID domain.PartyID, seats int) *PartyServiceState {
+	return &PartyServiceState{
+		ID:          partyID,
+		Status:      SeatPreserved,
+		SeatsCount:  seats,
+		PreservedAt: time.Now(),
+		CheckedInAt: time.Now(),
+	}
+}

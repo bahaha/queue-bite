@@ -6,35 +6,30 @@ import (
 	"queue-bite/pkg/session"
 
 	log "queue-bite/internal/config/logger"
-	"queue-bite/internal/features/waitlist/domain"
-	"queue-bite/internal/features/waitlist/handler/view"
-	"queue-bite/internal/features/waitlist/service"
+	"queue-bite/internal/features/seatmanager/handler/view"
+	w "queue-bite/internal/features/waitlist/domain"
+	ws "queue-bite/internal/features/waitlist/service"
 
 	"github.com/a-h/templ"
 )
 
-type VitrineHandler struct {
-	waitlist service.Waitlist
+type VitrineHandler struct{}
+
+func NewVitrineHandler() *VitrineHandler {
+	return &VitrineHandler{}
 }
 
-func NewVitrineHandler(
-	waitlist service.Waitlist,
-) *VitrineHandler {
-	return &VitrineHandler{
-		waitlist: waitlist,
-	}
-}
-
-var VITRINE = "waitlist/vitrine"
+var VITRINE = "seatmanager/vitrine"
 
 func (h *VitrineHandler) HandleVitrineDisplay(
 	logger log.Logger,
 	cookieManager *session.CookieManager,
 	cookieQueuedParty *session.CookieConfig,
+	waitlist ws.Waitlist,
 ) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		status, err := h.waitlist.GetQueueStatus(r.Context())
+		status, err := waitlist.GetQueueStatus(r.Context())
 		if err != nil {
 			logger.LogErr(VITRINE, err, "failed to fetch queue status")
 			h.renderVisitorView(w, r, status)
@@ -47,7 +42,7 @@ func (h *VitrineHandler) HandleVitrineDisplay(
 			return
 		}
 
-		queuedParty, err := h.waitlist.GetQueuedParty(r.Context(), partySession.PartyID)
+		queuedParty, err := waitlist.GetQueuedParty(r.Context(), partySession.PartyID)
 		if err != nil || queuedParty == nil {
 			logger.LogDebug("party no longer in queue, clearing cookie",
 				"party_id", partySession.PartyID)
@@ -64,7 +59,7 @@ func (h *VitrineHandler) HandleVitrineDisplay(
 func (h *VitrineHandler) renderVisitorView(
 	w http.ResponseWriter,
 	r *http.Request,
-	status *domain.QueueStatus,
+	status *w.QueueStatus,
 ) {
 	props := view.ToVitrineProps(nil, status)
 	templ.Handler(view.VitrinePage(props)).ServeHTTP(w, r)
@@ -73,8 +68,8 @@ func (h *VitrineHandler) renderVisitorView(
 func (h *VitrineHandler) renderQueuedPartyView(
 	w http.ResponseWriter,
 	r *http.Request,
-	party *domain.QueuedParty,
-	status *domain.QueueStatus,
+	party *w.QueuedParty,
+	status *w.QueueStatus,
 ) {
 	props := view.ToVitrineProps(party, status)
 	templ.Handler(view.VitrinePage(props)).ServeHTTP(w, r)

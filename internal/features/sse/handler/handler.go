@@ -38,10 +38,3 @@ func HandleQueuedPartyServerSentEventConn(
 		logger.LogDebug("sse/conn", "party server sent event disconnected", "party_id", partyID)
 	}
 }
-
-func ManuallyEvaluateNextQueuedParty(s sse.ServerSentEvents) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "partyID")
-		s.HandleNotifyPartyReady(r.Context(), &sse.NotifyPartyReadyEvent{PartyID: domain.PartyID(id)})
-	}
-}

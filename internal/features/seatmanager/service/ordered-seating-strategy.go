@@ -11,7 +11,7 @@ type OrderedSeatingStrategy struct {
 	waitlist ws.QueuedPartyProvider
 }
 
-func NewOrderedSeatingStrategy(waitlist ws.QueuedPartyProvider) SeatingStrategy {
+func NewOrderedSeatingStrategy(waitlist ws.QueuedPartyProvider) PartySelectionStrategy {
 	return &OrderedSeatingStrategy{
 		waitlist: waitlist,
 	}

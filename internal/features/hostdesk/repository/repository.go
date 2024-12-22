@@ -15,6 +15,10 @@ type HostDeskRepository interface {
 
 	GetPreservedSeats(ctx context.Context) (int, error)
 
+	ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) error
+
+	TransferToOccupied(ctx context.Context, partyID d.PartyID) error
+
 	GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error)
 
 	CreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState) error

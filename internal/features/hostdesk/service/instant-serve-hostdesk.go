@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
@@ -26,8 +28,7 @@ func NewInstantServeHostDesk(
 	totalSeats int,
 	repo repository.HostDeskRepository,
 	eventbus eventbus.EventBus,
-) *InstantServeHostDesk {
-
+) HostDesk {
 	return &InstantServeHostDesk{
 		logger:     logger,
 		totalSeats: totalSeats,
@@ -39,10 +40,14 @@ func NewInstantServeHostDesk(
 func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, error) {
 	occupied, err := h.repo.GetOccupiedSeats(ctx)
 	if err != nil {
-		return 0, err
+		return h.totalSeats, err
+	}
+	preserved, err := h.repo.GetPreservedSeats(ctx)
+	if err != nil {
+		return h.totalSeats, err
 	}
 
-	return h.totalSeats - occupied, nil
+	return h.totalSeats - occupied - preserved, nil
 }
 
 func (h *InstantServeHostDesk) NotifyPartyReady(ctx context.Context, party *wld.QueuedParty) error {
@@ -78,4 +83,32 @@ func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.Part
 		return false, err
 	}
 	return true, nil
+}
+
+func (h *InstantServeHostDesk) ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) (bool, error) {
+	err := h.repo.ReleasePreservedSeats(ctx, partyID)
+	if err == nil {
+		return true, nil
+	}
+	switch err {
+	case domain.ErrPartyNotFound:
+	case domain.ErrPartyNoPreservedSeats:
+		return false, nil
+	}
+	return false, fmt.Errorf("failed to release preserved seats for party: %v", partyID)
+}
+
+func (h *InstantServeHostDesk) ServeImmediately(ctx context.Context, party *d.Party) error {
+	state := domain.NewPartyServiceImmediately(party.ID, party.Size)
+	return h.repo.CreatePartyServiceState(ctx, state)
+}
+
+func (h *InstantServeHostDesk) CheckIn(ctx context.Context, party *wld.QueuedParty) error {
+	if err := h.repo.TransferToOccupied(ctx, party.ID); err != nil {
+		return err
+	}
+
+	return h.repo.UpdatePartyServiceState(ctx, party.ID, &domain.PartyServiceState{
+		CheckedInAt: time.Now(),
+	})
 }

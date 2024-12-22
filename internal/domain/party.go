@@ -24,8 +24,9 @@ type Party struct {
 	EstimatedServiceTime time.Duration
 }
 
-func NewParty(name string, size int) *Party {
+func NewParty(id PartyID, name string, size int) *Party {
 	return &Party{
+		ID:   id,
 		Name: name,
 		Size: size,
 	}
@@ -43,6 +44,7 @@ func (id *PartyStatus) UnmarshalBinary(data []byte) error {
 }
 
 const (
-	PartyStatusWaiting PartyStatus = "waiting"
 	PartyStatusReady   PartyStatus = "ready"
+	PartyStatusWaiting PartyStatus = "waiting"
+	PartyStatusServing PartyStatus = "serving"
 )

@@ -8,8 +8,9 @@ import (
 )
 
 type JoinFormData struct {
-	PartyName *fm.FormItemContext
-	PartySize *fm.FormItemContext
+	PartyName    *fm.FormItemContext
+	PartySize    *fm.FormItemContext
+	ErrorMessage string
 }
 
 func NewJoinFormData() *JoinFormData {
@@ -51,4 +52,7 @@ templ JoinForm(props *JoinFormData) {
 			Join Waitlist
 		</button>
 	</form>
+	if props.ErrorMessage != "" {
+		<div class="bg-destructive">{ props.ErrorMessage }</div>
+	}
 }

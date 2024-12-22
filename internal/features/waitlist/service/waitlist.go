@@ -2,21 +2,17 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/jinzhu/copier"
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
-	hostdesk "queue-bite/internal/features/hostdesk/service"
 	servicetime "queue-bite/internal/features/servicetime/service"
 	"queue-bite/internal/features/sse"
 	"queue-bite/internal/features/waitlist/domain"
 	"queue-bite/internal/features/waitlist/repository"
 	"queue-bite/internal/platform/eventbus"
-	"queue-bite/pkg/utils"
 )
 
 var WAITLIST = "waitlist"
@@ -43,7 +39,7 @@ type Waitlist interface {
 	// It calculates estimated service duration and waiting time,
 	// assigns a queue position, and returns the queued party information.
 	// Returns ErrPartyAlreadyQueued if the party is already in queue.
-	JoinQueue(ctx context.Context, hostdesk hostdesk.HostDesk, party *d.Party) (*domain.QueuedParty, error)
+	JoinQueue(ctx context.Context, party *d.Party) (*domain.QueuedParty, error)
 
 	// LeaveQueue removes a party from the waitlist queue.
 	// This updates wait times for remaining parties in the queue.
@@ -90,17 +86,7 @@ func (s *waitlistService) HasPartyExists(ctx context.Context, partyID d.PartyID)
 	return s.repo.HasParty(ctx, partyID)
 }
 
-func (s *waitlistService) JoinQueue(ctx context.Context, hostdesk hostdesk.HostDesk, party *d.Party) (*domain.QueuedParty, error) {
-	party.ID = d.PartyID(utils.GenerateID())
-	party.Status = d.PartyStatusWaiting
-	ok, err := hostdesk.PreserveSeats(ctx, party.ID, party.Size)
-	if err != nil {
-		return nil, err
-	}
-	if ok {
-		party.Status = d.PartyStatusReady
-	}
-
+func (s *waitlistService) JoinQueue(ctx context.Context, party *d.Party) (*domain.QueuedParty, error) {
 	serviceDuration, err := s.serviceEstimator.EstimateServiceTime(ctx, party)
 	if err != nil {
 		return nil, err
@@ -113,9 +99,6 @@ func (s *waitlistService) JoinQueue(ctx context.Context, hostdesk hostdesk.HostD
 
 	queuedParty, err = s.repo.AddParty(ctx, queuedParty)
 	if err != nil {
-		if errors.Is(err, domain.ErrPartyAlreadyQueued) {
-			return nil, &domain.QueueOperationError{Op: "join", ID: party.ID, Err: err}
-		}
 		return nil, err
 	}
 
@@ -123,13 +106,7 @@ func (s *waitlistService) JoinQueue(ctx context.Context, hostdesk hostdesk.HostD
 }
 
 func (s *waitlistService) LeaveQueue(ctx context.Context, partyID d.PartyID) error {
-	if err := s.repo.RemoveParty(ctx, partyID); err != nil {
-		if errors.Is(err, domain.ErrPartyNotFound) {
-			return &domain.QueueOperationError{Op: "leave", ID: partyID, Err: err}
-		}
-		return fmt.Errorf("party with id: %s could not leave waitlist: %w", partyID, err)
-	}
-	return nil
+	return s.repo.RemoveParty(ctx, partyID)
 }
 
 func (s *waitlistService) GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error) {

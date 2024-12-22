@@ -22,7 +22,7 @@ type InMemoryHostDeskRepository struct {
 	totalPreserved int
 }
 
-func NewInMemoryHostDeskRepository(logger log.Logger) *InMemoryHostDeskRepository {
+func NewInMemoryHostDeskRepository(logger log.Logger) HostDeskRepository {
 	return &InMemoryHostDeskRepository{
 		logger: logger,
 		state:  make(map[d.PartyID]*domain.PartyServiceState),
@@ -42,6 +42,44 @@ func (r *InMemoryHostDeskRepository) GetPreservedSeats(ctx context.Context) (int
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.totalPreserved, nil
+}
+
+func (r *InMemoryHostDeskRepository) ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	state, exists := r.state[partyID]
+	if !exists {
+		return domain.ErrPartyNotFound
+	}
+	if state.Status != domain.SeatPreserved {
+		return domain.ErrPartyNoPreservedSeats
+	}
+
+	r.totalPreserved += state.SeatsCount
+	delete(r.state, partyID)
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "release preserved seats", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
+	return nil
+}
+
+func (r *InMemoryHostDeskRepository) TransferToOccupied(ctx context.Context, partyID d.PartyID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	state, exists := r.state[partyID]
+	if !exists {
+		return domain.ErrPartyNotFound
+	}
+	if state.Status != domain.SeatPreserved {
+		return domain.ErrPartyNoPreservedSeats
+	}
+
+	r.totalPreserved -= state.SeatsCount
+	r.totalOccupied += state.SeatsCount
+	state.Status = domain.SeatOccupied
+
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "transfer preserved seats to occupied", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
+	return nil
 }
 
 func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error) {
@@ -64,6 +102,13 @@ func (r *InMemoryHostDeskRepository) CreatePartyServiceState(ctx context.Context
 	}
 
 	r.state[state.ID] = state
+	switch state.Status {
+	case domain.SeatOccupied:
+		r.totalOccupied += state.SeatsCount
+	case domain.SeatPreserved:
+		r.totalPreserved += state.SeatsCount
+	}
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "start service for party", "party id", state.ID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
 	return nil
 }
 

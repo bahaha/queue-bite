@@ -47,7 +47,8 @@ func NewServer(
 	serviceTimeEstimator st.ServiceTimeEstimator,
 	waitlistRepo wrepo.WaitlistRepositoy,
 	hostdesk hds.HostDesk,
-	seatStrategyFactory func(ws.QueuedPartyProvider) sms.SeatingStrategy,
+	partyProcessingStrategy sms.PartyProcessingStrategy,
+	partySelectionStrategyFactory func(ws.QueuedPartyProvider) sms.PartySelectionStrategy,
 ) *http.Server {
 	cookieManager, err := session.NewCookieManager(cfg.CookieEncryptionKey)
 	if err != nil {
@@ -57,9 +58,9 @@ func NewServer(
 	cookieCfgs := config.NewCookieConfigs(cfg)
 	sseManager := sse.NewServerSentEvent(logger, eventbus)
 	waitlist := ws.NewWaitlistService(logger, waitlistRepo, serviceTimeEstimator, eventbus)
-	seatstrategy := seatStrategyFactory(waitlist)
+	partySelection := partySelectionStrategyFactory(waitlist)
 
-	seatManager := sms.NewSeatManager(logger, eventbus, waitlist, hostdesk, seatstrategy)
+	seatManager := sms.NewSeatManager(logger, eventbus, waitlist, hostdesk, partyProcessingStrategy, partySelection)
 
 	NewServer := &Server{
 		cfg:           cfg,
