@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 
 	"github.com/jinzhu/copier"
 
@@ -13,49 +13,47 @@ import (
 
 var INMEMORY_HOSTDESK = "hostdesk/in-memory"
 
+type hostdeskStats struct {
+	Occupied  int
+	Preserved int
+	Version   d.Version
+}
+
 type InMemoryHostDeskRepository struct {
 	logger log.Logger
 	state  map[d.PartyID]*domain.PartyServiceState
-	mu     sync.RWMutex
-
-	version        d.Version
-	totalOccupied  int
-	totalPreserved int
+	stats  atomic.Value
 }
 
 func NewInMemoryHostDeskRepository(logger log.Logger) HostDeskRepository {
-	return &InMemoryHostDeskRepository{
+	repo := &InMemoryHostDeskRepository{
 		logger: logger,
 		state:  make(map[d.PartyID]*domain.PartyServiceState),
-
-		version:        d.Version(0),
-		totalOccupied:  0,
-		totalPreserved: 0,
 	}
+	repo.stats.Store(hostdeskStats{
+		Occupied:  0,
+		Preserved: 0,
+		Version:   0,
+	})
+	return repo
 }
 
 func (r *InMemoryHostDeskRepository) GetOccupiedSeats(ctx context.Context) (int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.totalOccupied, nil
+	state := r.stats.Load().(hostdeskStats)
+	return state.Occupied, nil
 }
 
 func (r *InMemoryHostDeskRepository) GetPreservedSeats(ctx context.Context) (int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.totalPreserved, nil
+	state := r.stats.Load().(hostdeskStats)
+	return state.Preserved, nil
 }
 
 func (r *InMemoryHostDeskRepository) GetTotalSeatsInUse(ctx context.Context) (int, d.Version, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.totalOccupied + r.totalPreserved, r.version, nil
+	state := r.stats.Load().(hostdeskStats)
+	return state.Occupied + state.Preserved, d.Version(state.Version), nil
 }
 
 func (r *InMemoryHostDeskRepository) ReleasePreservedSeats(ctx context.Context, partyID d.PartyID) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	state, exists := r.state[partyID]
 	if !exists {
 		return domain.ErrPartyNotFound
@@ -64,17 +62,20 @@ func (r *InMemoryHostDeskRepository) ReleasePreservedSeats(ctx context.Context, 
 		return domain.ErrPartyNoPreservedSeats
 	}
 
-	r.totalPreserved += state.SeatsCount
+	stats := r.stats.Load().(hostdeskStats)
+	newStats := hostdeskStats{
+		Occupied:  stats.Occupied,
+		Preserved: stats.Preserved + state.SeatsCount,
+		Version:   stats.Version + 1,
+	}
+	r.stats.Store(newStats)
+
 	delete(r.state, partyID)
-	r.version++
-	r.logger.LogDebug(INMEMORY_HOSTDESK, "release preserved seats", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "release preserved seats", "party id", partyID, "stats", newStats)
 	return nil
 }
 
 func (r *InMemoryHostDeskRepository) TransferToOccupied(ctx context.Context, partyID d.PartyID) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	state, exists := r.state[partyID]
 	if !exists {
 		return domain.ErrPartyNotFound
@@ -83,18 +84,20 @@ func (r *InMemoryHostDeskRepository) TransferToOccupied(ctx context.Context, par
 		return domain.ErrPartyNoPreservedSeats
 	}
 
-	r.totalPreserved -= state.SeatsCount
-	r.totalOccupied += state.SeatsCount
+	stats := r.stats.Load().(hostdeskStats)
+	nextStats := hostdeskStats{
+		Occupied:  stats.Occupied + state.SeatsCount,
+		Preserved: stats.Preserved - state.SeatsCount,
+		Version:   stats.Version + 1,
+	}
+	r.stats.Store(nextStats)
 	state.Status = domain.SeatOccupied
-	r.version++
-	r.logger.LogDebug(INMEMORY_HOSTDESK, "transfer preserved seats to occupied", "party id", partyID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
+
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "transfer preserved seats to occupied", "party id", partyID, "stats", nextStats)
 	return nil
 }
 
 func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	state, exists := r.state[partyID]
 	if !exists {
 		return nil, nil
@@ -103,37 +106,39 @@ func (r *InMemoryHostDeskRepository) GetPartyServiceState(ctx context.Context, p
 }
 
 func (r *InMemoryHostDeskRepository) CreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState) error {
-	return r.OptimisticCreatePartyServiceState(ctx, state, r.version)
+	stats := r.stats.Load().(hostdeskStats)
+	return r.OptimisticCreatePartyServiceState(ctx, state, stats.Version)
 }
 
 func (r *InMemoryHostDeskRepository) OptimisticCreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState, version d.Version) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, exists := r.state[state.ID]; exists {
 		return domain.ErrPartyAlreadyExists
 	}
 
-	if r.version != version {
+	stats := r.stats.Load().(hostdeskStats)
+	if stats.Version != version {
 		return d.ErrVersionMismatch
 	}
 
 	r.state[state.ID] = state
+	nextStats := hostdeskStats{
+		Occupied:  stats.Occupied,
+		Preserved: stats.Preserved,
+		Version:   stats.Version + 1,
+	}
 	switch state.Status {
 	case domain.SeatOccupied:
-		r.totalOccupied += state.SeatsCount
+		nextStats.Occupied += state.SeatsCount
 	case domain.SeatPreserved:
-		r.totalPreserved += state.SeatsCount
+		nextStats.Preserved += state.SeatsCount
 	}
-	r.version++
-	r.logger.LogDebug(INMEMORY_HOSTDESK, "start service for party", "party id", state.ID, "occupied", r.totalOccupied, "preserved", r.totalPreserved)
+	r.stats.Store(nextStats)
+
+	r.logger.LogDebug(INMEMORY_HOSTDESK, "start service for party", "party id", state.ID, "stats", nextStats)
 	return nil
 }
 
 func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context, partyID d.PartyID, nextState *domain.PartyServiceState) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	currentState, exists := r.state[partyID]
 	if !exists {
 		return domain.ErrPartyNotFound
@@ -148,8 +153,12 @@ func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context
 	}
 
 	if nextState.SeatsCount != 0 && nextState.SeatsCount != oldSeats {
-		r.totalOccupied = r.totalOccupied - oldSeats + nextState.SeatsCount
-		r.version++
+		stats := r.stats.Load().(hostdeskStats)
+		r.stats.Store(hostdeskStats{
+			Occupied:  stats.Occupied - oldSeats + nextState.SeatsCount,
+			Preserved: stats.Preserved,
+			Version:   stats.Version + 1,
+		})
 	}
 
 	return nil
