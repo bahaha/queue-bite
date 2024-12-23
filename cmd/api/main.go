@@ -52,7 +52,8 @@ func run(
 	instantHost := hd.NewInstantServeHostDesk(logger,
 		cfg.HostDesk.InstantServeHostDeskSeatCapacity,
 		hdimpl.NewRedisHostDeskRepository(logger, redis.Client),
-		eventbus)
+		eventbus,
+		hd.NewLinearServiceTimer(logger, cfg.HostDesk.LinearServiceTimerDurationPerGuest))
 
 	server := server.NewServer(
 		cfg,

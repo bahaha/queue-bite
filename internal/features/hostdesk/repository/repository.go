@@ -28,4 +28,6 @@ type HostDeskRepository interface {
 	OptimisticCreatePartyServiceState(ctx context.Context, state *domain.PartyServiceState, version d.Version) error
 
 	UpdatePartyServiceState(ctx context.Context, partyID d.PartyID, state *domain.PartyServiceState) error
+
+	EndPartyServiceState(ctx context.Context, partyID d.PartyID) error
 }

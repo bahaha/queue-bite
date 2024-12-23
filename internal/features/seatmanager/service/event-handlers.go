@@ -17,7 +17,7 @@ func (m *seatManager) handleSeatPreservedEvent(ctx context.Context, event eventb
 	return nil
 }
 
-func (m *seatManager) handleEvaluateNextParty(ctx context.Context, event eventbus.Event) error {
+func (m *seatManager) handlePartyServiceCompleted(ctx context.Context, event eventbus.Event) error {
 	m.checkAndAssignSeating(ctx)
 	return nil
 }

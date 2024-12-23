@@ -7,6 +7,15 @@ import (
 
 type SeatStatus string
 
+func (id SeatStatus) MarshalBinary() ([]byte, error) {
+	return []byte(string(id)), nil
+}
+
+func (id *SeatStatus) UnmarshalBinary(data []byte) error {
+	*id = SeatStatus(data)
+	return nil
+}
+
 const (
 	SeatAvailable SeatStatus = "available"
 	SeatPreserved SeatStatus = "preserved"

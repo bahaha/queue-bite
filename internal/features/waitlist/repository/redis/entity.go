@@ -17,18 +17,20 @@ type redisQueuedParty struct {
 	Status   d.PartyStatus `redis:"status"`
 
 	// Queue-specific fields
-	Position             int           `redis:"-"` // Computed from ZRANK
-	EstimatedServiceTime time.Duration `redis:"est"`
+	Position             int `redis:"-"` // Computed from ZRANK
+	EstimatedServiceTime int `redis:"est"`
 }
 
 func (r *redisQueuedParty) asQueuedParty() *domain.QueuedParty {
 	party := &domain.QueuedParty{}
 	copier.Copy(party, r)
+	party.EstimatedServiceTime = time.Duration(r.EstimatedServiceTime) * time.Second
 	return party
 }
 
 func newRedisQueuedParty(party *domain.QueuedParty) *redisQueuedParty {
 	entity := &redisQueuedParty{}
 	copier.Copy(entity, party)
+	entity.EstimatedServiceTime = int(party.EstimatedServiceTime.Seconds())
 	return entity
 }

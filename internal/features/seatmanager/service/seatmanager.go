@@ -24,6 +24,7 @@ type SeatManager interface {
 	UnwatchSeatVacancy(ctx context.Context) error
 
 	ProcessNewParty(ctx context.Context, party *d.Party) (*w.QueuedParty, error)
+	PartyCheckIn(ctx context.Context, partyID d.PartyID) error
 }
 
 type PartySelectionStrategy interface {
@@ -63,6 +64,7 @@ func NewSeatManager(
 
 func (m *seatManager) WatchSeatVacancy(ctx context.Context) error {
 	m.eventbus.Subscribe(hdd.TopicPartyPreserved, m.handleSeatPreservedEvent)
+	m.eventbus.Subscribe(hdd.TopicPartyServiceCompleted, m.handlePartyServiceCompleted)
 	return nil
 }
 
@@ -143,6 +145,29 @@ func (m *seatManager) ProcessNewParty(ctx context.Context, party *d.Party) (*w.Q
 	}
 
 	return nil, d.ErrTooManyOptimisticLockRetries
+}
+
+func (m *seatManager) PartyCheckIn(ctx context.Context, partyID d.PartyID) error {
+	party, err := m.waitlist.GetQueuedParty(ctx, partyID)
+	if err != nil {
+		return err
+	}
+
+	// TODO: transaction like leave queue, but checkin fails
+	if party.Status != d.PartyStatusServing {
+		if err := m.waitlist.LeaveQueue(ctx, party.ID); err != nil {
+			m.logger.LogErr(SEAT_MANAGER, err, "leave queue failed", "party", party)
+			return err
+		}
+		m.logger.LogDebug(SEAT_MANAGER, "party leave queue by checking in", "party", party)
+	}
+
+	if err := m.hostdesk.CheckIn(ctx, party); err != nil {
+		m.logger.LogErr(SEAT_MANAGER, err, "check in failed", "party", party)
+		return err
+	}
+	m.logger.LogDebug(SEAT_MANAGER, "party check in", "party", party)
+	return nil
 }
 
 func (m *seatManager) checkAndAssignSeating(ctx context.Context) error {

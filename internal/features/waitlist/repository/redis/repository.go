@@ -61,11 +61,12 @@ func (r *redisWaitlistRepository) AddParty(ctx context.Context, party *domain.Qu
 		r.keys.partyDetails(id),
 		r.keys.waitTimePrefixsum(),
 		r.keys.partyWaitTime(id),
+		r.keys.totalServiceTime(),
 	}
 	joinArgs := []interface{}{
 		id,
-		party.EstimatedServiceTime.Round(time.Second),
-		time.Now().Nanosecond(),
+		int(party.EstimatedServiceTime.Seconds()),
+		time.Now().Unix(),
 		r.ttl,
 	}
 	results, err := r.joinScript.Run(ctx, r.client, joinKeys, joinArgs...).Slice()
@@ -90,6 +91,7 @@ func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.Par
 		r.keys.partyDetails(partyID),
 		r.keys.totalServiceTime(),
 		r.keys.partyWaitTimePrefix(),
+		r.keys.waitTimePrefixsum(),
 	}
 
 	leaveArgs := []interface{}{partyID, "est"}
@@ -100,6 +102,9 @@ func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.Par
 		return fmt.Errorf("could not run leave queue script: %w", err)
 	}
 
+	fmt.Println("------------------------")
+	fmt.Println(results...)
+	fmt.Println("------------------------")
 	if results == nil {
 		err := domain.ErrPartyNotFound
 		r.logger.LogErr(REDIS_WAITLIST, err, "inconsistency state: either could not find the party in the queue list or we could not find the estimated service time for the party", "party id", partyID)
@@ -107,7 +112,7 @@ func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.Par
 	}
 
 	position := results[0].(int64)
-	estimatedServiceTimeOfLeftParty := results[1].(int64)
+	estimatedServiceTimeOfLeftParty := results[1]
 
 	r.logger.LogDebug(REDIS_WAITLIST, "party left the waitlist", "position", position, "estimated service time of party", estimatedServiceTimeOfLeftParty, "party id", partyID)
 	return nil
@@ -174,12 +179,12 @@ func (r *redisWaitlistRepository) GetPartyDetails(ctx context.Context, partyID d
 }
 
 func (r *redisWaitlistRepository) GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error) {
-	waitNanos, err := r.client.Get(ctx, r.keys.waitTimePrefixsum()).Result()
+	waitSecs, err := r.client.Get(ctx, r.keys.waitTimePrefixsum()).Result()
 	if err != nil && err != redis.Nil {
 		r.logger.LogErr(REDIS_WAITLIST, err, "could not get the total wait from redis")
 		return nil, fmt.Errorf("could not get the total wait from redis: %w", err)
 	}
-	totalWait := deserializeTime(waitNanos)
+	totalWait := deserializeTime(waitSecs)
 
 	amount, err := r.client.ZCard(ctx, r.keys.waitingQueue()).Result()
 	if err != nil && err != redis.Nil {
@@ -251,22 +256,19 @@ func (r *redisWaitlistRepository) UpdatePartyStatus(ctx context.Context, partyID
 	return nil
 }
 
-// deserializeTime converts Redis response (int64 or string in scientific notation)
+// deserializeTime converts Redis response (int64 or string in seconds)
 // to time.Duration. It handles both numeric formats gracefully:
-//   - "3e+11" -> 5m0s
-//   - 300000000000 -> 5m0s
-//
 // Returns 0 duration if parsing fails.
 func deserializeTime(val interface{}) time.Duration {
 	switch v := val.(type) {
 	case int64:
-		return time.Duration(v)
+		return time.Duration(v) * time.Second
 	case string:
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return 0
 		}
-		return time.Duration(f)
+		return time.Duration(f) * time.Second
 	default:
 		return 0
 	}

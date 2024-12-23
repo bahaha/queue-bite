@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/form/v4"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -128,4 +129,16 @@ func setQueuedPartyCookie(w http.ResponseWriter, cookieManager *session.CookieMa
 
 func renderQueuedParty(w http.ResponseWriter, r *http.Request, party *w.QueuedParty) {
 	templ.Handler(view.QueuedParty(view.NewQueuedPartyProps(party))).ServeHTTP(w, r)
+}
+
+func (h *seatManagerHandler) HandlePartyCheckIn(
+	logger log.Logger,
+	seatManager service.SeatManager,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "partyID")
+		err := seatManager.PartyCheckIn(r.Context(), d.PartyID(id))
+		if err != nil {
+		}
+	}
 }

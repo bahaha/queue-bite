@@ -45,6 +45,16 @@ func TestRedisWaitlistRepository(t *testing.T) {
 	partyIII.ID = "test-party-3"
 	partyIII.EstimatedServiceTime = 5 * time.Minute
 
+	partyIV := &domain.QueuedParty{}
+	copier.Copy(partyIV, party)
+	partyIV.ID = "test-party-4"
+	partyIV.EstimatedServiceTime = 5 * time.Minute
+
+	partyV := &domain.QueuedParty{}
+	copier.Copy(partyV, party)
+	partyV.ID = "test-party-5"
+	partyV.EstimatedServiceTime = 10 * time.Minute
+
 	t.Run("add and retrieve party", func(t *testing.T) {
 		addedParty, err := repo.AddParty(ctx, party)
 		require.NoError(t, err)
@@ -140,6 +150,40 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		retrievedPartyIII, err := repo.GetParty(ctx, partyIII.ID)
 		assert.Equal(t, 0, retrievedPartyIII.Position)
 		assert.Equal(t, time.Duration(0), retrievedPartyIII.RemainingWaitTime())
+	})
+
+	t.Run("the latest party left queue", func(t *testing.T) {
+		err := repo.RemoveParty(ctx, partyIII.ID)
+		require.NoError(t, err)
+
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, status.TotalParties)
+
+		retrievedPartyIII, err := repo.GetParty(ctx, partyIII.ID)
+		require.NoError(t, err)
+		assert.Nil(t, retrievedPartyIII)
+	})
+
+	t.Run("new party join an empty queue", func(t *testing.T) {
+		addedParty, err := repo.AddParty(ctx, partyIV)
+		require.NoError(t, err)
+		assert.Equal(t, 0, addedParty.Position)
+		assert.Equal(t, partyIV.EstimatedServiceTime, addedParty.EstimatedEndOfServiceTime)
+		assert.Equal(t, d.PartyStatusWaiting, addedParty.Status)
+		assert.Equal(t, time.Duration(0), addedParty.RemainingWaitTime())
+	})
+
+	t.Run("the first leave, then a new party joins", func(t *testing.T) {
+		_, err := repo.AddParty(ctx, partyV)
+		require.NoError(t, err)
+
+		err = repo.RemoveParty(ctx, partyIV.ID)
+		require.NoError(t, err)
+
+		addedParty, err := repo.AddParty(ctx, party)
+		require.NoError(t, err)
+		assert.Equal(t, partyV.EstimatedServiceTime, addedParty.RemainingWaitTime())
 	})
 }
 

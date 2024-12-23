@@ -35,6 +35,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 		r.Get("/", vitrineHandler.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.waitlist))
 		r.Post("/join", seatManagerHandler.HandleNewPartyArrival(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty, s.seatmanager))
+		r.Post("/check-in/{partyID}", seatManagerHandler.HandlePartyCheckIn(s.logger, s.seatmanager))
 	})
 
 	r.Get("/sse/waitlist/{partyID}", sse.HandleQueuedPartyServerSentEventConn(s.logger, s.sse, s.waitlist))

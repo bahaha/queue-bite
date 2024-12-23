@@ -7,7 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"queue-bite/internal/features/sse/view"
+	"queue-bite/internal/features/seatmanager/handler/view"
 	"queue-bite/internal/platform/eventbus"
 )
 
@@ -19,7 +19,7 @@ func (s *sse) HandleNotifyPartyReady(ctx context.Context, event eventbus.Event) 
 		return nil
 	}
 
-	notifyClient(client, TopicNotifyPartyReady, view.SeatReady())
+	notifyClient(client, TopicNotifyPartyReady, view.SeatReady(e.PartyID))
 	return nil
 }
 

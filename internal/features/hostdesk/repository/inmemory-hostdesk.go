@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	"github.com/jinzhu/copier"
 
@@ -92,6 +93,7 @@ func (r *InMemoryHostDeskRepository) TransferToOccupied(ctx context.Context, par
 	}
 	r.stats.Store(nextStats)
 	state.Status = domain.SeatOccupied
+	state.CheckedInAt = time.Now()
 
 	r.logger.LogDebug(INMEMORY_HOSTDESK, "transfer preserved seats to occupied", "party id", partyID, "stats", nextStats)
 	return nil
@@ -161,5 +163,15 @@ func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context
 		})
 	}
 
+	return nil
+}
+
+func (r *InMemoryHostDeskRepository) EndPartyServiceState(ctx context.Context, partyID d.PartyID) error {
+	_, exists := r.state[partyID]
+	if !exists {
+		return domain.ErrPartyNotFound
+	}
+
+	delete(r.state, partyID)
 	return nil
 }

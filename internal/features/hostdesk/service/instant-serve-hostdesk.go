@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
@@ -16,11 +15,11 @@ import (
 var INSTANT_SERVE = "hostdesk/instant-serve"
 
 type InstantServeHostDesk struct {
-	logger   log.Logger
-	repo     repository.HostDeskRepository
-	eventbus eventbus.EventBus
-
-	totalSeats int
+	logger       log.Logger
+	repo         repository.HostDeskRepository
+	eventbus     eventbus.EventBus
+	servicetimer ServiceTimer
+	totalSeats   int
 }
 
 func NewInstantServeHostDesk(
@@ -28,12 +27,14 @@ func NewInstantServeHostDesk(
 	totalSeats int,
 	repo repository.HostDeskRepository,
 	eventbus eventbus.EventBus,
+	servicetimer ServiceTimer,
 ) HostDesk {
 	return &InstantServeHostDesk{
-		logger:     logger,
-		totalSeats: totalSeats,
-		repo:       repo,
-		eventbus:   eventbus,
+		logger:       logger,
+		totalSeats:   totalSeats,
+		repo:         repo,
+		eventbus:     eventbus,
+		servicetimer: servicetimer,
 	}
 }
 
@@ -102,11 +103,32 @@ func (h *InstantServeHostDesk) ServeImmediately(ctx context.Context, party *d.Pa
 }
 
 func (h *InstantServeHostDesk) CheckIn(ctx context.Context, party *wld.QueuedParty) error {
-	if err := h.repo.TransferToOccupied(ctx, party.ID); err != nil {
-		return err
+	if party.Status == d.PartyStatusReady {
+		if err := h.repo.TransferToOccupied(ctx, party.ID); err != nil {
+			return err
+		}
+		h.logger.LogDebug(INSTANT_SERVE, "party checked in, transfer preserved seats to occupied", "party", party)
+	} else if party.Status == d.PartyStatusServing {
+		h.logger.LogDebug(INSTANT_SERVE, "party checkin in, start serving", "party", party)
+	} else {
+		return fmt.Errorf("invalid state of party checkin: %v", party)
 	}
 
-	return h.repo.UpdatePartyServiceState(ctx, party.ID, &domain.PartyServiceState{
-		CheckedInAt: time.Now(),
-	})
+	if h.servicetimer != nil {
+		h.servicetimer.StartTracking(ctx, party, func(ctx context.Context, partyID d.PartyID) error {
+			return h.ServiceComplete(ctx, party)
+		})
+	}
+	return nil
+}
+
+func (h *InstantServeHostDesk) ServiceComplete(ctx context.Context, party *wld.QueuedParty) error {
+	if err := h.repo.EndPartyServiceState(ctx, party.ID); err != nil {
+		return err
+	}
+	h.logger.LogDebug(INSTANT_SERVE, "service completed", "party", party)
+	if err := h.eventbus.Publish(ctx, domain.PartyServiceCompeletedEvent{PartyID: party.ID}); err != nil {
+		return err
+	}
+	return nil
 }

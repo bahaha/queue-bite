@@ -32,7 +32,7 @@ func TestPreserveSeats(t *testing.T) {
 	impl := []repository.HostDeskRepository{inmemoryRepo, redisRepo}
 	svc := []HostDesk{}
 	for _, repo := range impl {
-		svc = append(svc, NewInstantServeHostDesk(logger, totalSeats, repo, eventbus))
+		svc = append(svc, NewInstantServeHostDesk(logger, totalSeats, repo, eventbus, nil))
 	}
 
 	t.Run("successful reservation", func(t *testing.T) {

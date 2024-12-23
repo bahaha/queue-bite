@@ -130,3 +130,17 @@ func (mr *MockHostDeskMockRecorder) ServeImmediately(ctx, party any) *gomock.Cal
         return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeImmediately", reflect.TypeOf((*MockHostDesk)(nil).ServeImmediately), ctx, party)
 }
 
+// ServiceComplete mocks base method.
+func (m *MockHostDesk) ServiceComplete(ctx context.Context, party *domain0.QueuedParty) error {
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "ServiceComplete", ctx, party)
+        ret0, _ := ret[0].(error)
+        return ret0
+}
+
+// ServiceComplete indicates an expected call of ServiceComplete.
+func (mr *MockHostDeskMockRecorder) ServiceComplete(ctx, party any) *gomock.Call {
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceComplete", reflect.TypeOf((*MockHostDesk)(nil).ServiceComplete), ctx, party)
+}
+

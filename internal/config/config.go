@@ -33,7 +33,8 @@ type Config struct {
 		FixedRateUnit time.Duration `env:"FIXED_RATE_SERVICE_ESTIMATOR_UNIT" default:"5m"`
 	}
 	HostDesk struct {
-		InstantServeHostDeskSeatCapacity int `env:"INSTANT_SERVE_HOST_DESK_SEAT_CAPACITY" default:"12"`
+		InstantServeHostDeskSeatCapacity   int           `env:"INSTANT_SERVE_HOST_DESK_SEAT_CAPACITY" default:"10"`
+		LinearServiceTimerDurationPerGuest time.Duration `env:"LINEAR_SERVICE_TIMER_DURATION_PER_GUEST" default:"3s"`
 	}
 	SeatManager struct {
 		PreserveMaxRetries int `env:"PRESERVE_SEAT_MAX_RETRIES" default:"3"`

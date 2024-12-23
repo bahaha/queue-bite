@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jinzhu/copier"
@@ -124,10 +125,11 @@ const transferToOccupiedScript = `
     local party_state_key = KEYS[2]
     local seat_cnt = ARGV[1]
     local party_next_status = ARGV[2]
+    local checked_in_at = ARGV[3]
     redis.call('HINCRBY', stats_key, 'Occupied', seat_cnt)
     redis.call('HINCRBY', stats_key, 'Preserved', -seat_cnt)
     redis.call('HINCRBY', stats_key, 'Version', 1)
-    redis.call('HSET', party_state_key, "Status", party_next_status)
+    redis.call('HMSET', party_state_key, "Status", party_next_status, "CheckedInAt", checked_in_at)
     return nil
 `
 
@@ -146,13 +148,14 @@ func (r *RedisHostDeskRepository) TransferToOccupied(ctx context.Context, partyI
 		return domain.ErrPartyNoPreservedSeats
 	}
 
-	seats := results[1].(int64)
+	seats, _ := strconv.ParseInt(results[1].(string), 10, 64)
 	script := redis.NewScript(transferToOccupiedScript)
 	transferKeys := []string{r.keys.getStatsKey(), r.keys.getPartyStateKey(partyID)}
-	transferVals := []interface{}{seats, domain.SeatOccupied}
+	checkedInAt := time.Now().Unix()
+	transferVals := []interface{}{seats, domain.SeatOccupied, checkedInAt}
 	_, err = script.Run(ctx, r.client, transferKeys, transferVals...).Result()
 
-	if err != nil {
+	if err != nil && err != redis.Nil {
 		return err
 	}
 
@@ -268,6 +271,33 @@ func (r *RedisHostDeskRepository) UpdatePartyServiceState(ctx context.Context, p
 
 	// TODO: not support seat count changes yet
 	// if you have to support seat count change, then we need to use lua script to run commands for atomic operations
+
+	return nil
+}
+
+const endOfPartyServiceScript = `
+    local stats_key = KEYS[1]
+    local party_state_key = KEYS[2]
+    local seats = redis.call('HGET', party_state_key, "SeatsCount")
+    if not seats then
+        return 0
+    end
+    redis.call('HINCRBY', stats_key, "Occupied", -tonumber(seats))
+    return redis.call('DEL', party_state_key)
+`
+
+func (r *RedisHostDeskRepository) EndPartyServiceState(ctx context.Context, partyID d.PartyID) error {
+	endOfServiceKeys := []string{r.keys.getStatsKey(), r.keys.getPartyStateKey(partyID)}
+	success, err := r.client.Eval(ctx, endOfPartyServiceScript, endOfServiceKeys).Result()
+
+	if err != nil {
+		r.logger.LogErr(REDIS_HOSTDESK, err, "could not execute end of party service script on redis", "keys", endOfServiceKeys)
+		return err
+	}
+
+	if success.(int64) == int64(0) {
+		return domain.ErrPartyNotFound
+	}
 
 	return nil
 }

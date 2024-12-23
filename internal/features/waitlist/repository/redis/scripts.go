@@ -5,6 +5,7 @@ package redis
 //   - party_detail_key
 //   - total_wait_prefixsum_key
 //   - party_wait_prefixsum_key
+//   - total_service_time_key
 //
 // ARGV:
 //   - party_id
@@ -16,6 +17,7 @@ local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
 local total_wait_prefixsum_key = KEYS[3]
 local party_wait_prefixsum_key = KEYS[4]
+local total_service_time_key = KEYS[5]
 local party_id = ARGV[1]
 local estimated_service_time = ARGV[2]
 local join_score = ARGV[3]
@@ -32,11 +34,12 @@ end
 
 -- Increment total wait time and get new value
 local next_wait = redis.call('INCRBY', total_wait_prefixsum_key, estimated_service_time)
+local total_service_time = redis.call('GET', total_service_time_key) or 0
 
 -- Set wait time prefix sum for this group with TTL
 redis.call('SET', party_wait_prefixsum_key, next_wait, 'EX', ttl)
 
-return {success_cnt, wait_entries_ahead, next_wait}
+return {success_cnt, wait_entries_ahead, next_wait - total_service_time}
 `
 
 // KEYS:
@@ -78,6 +81,7 @@ return {details, wait_time - total_service_time, position}
 //   - party_detail_key
 //   - total_service_time_key
 //   - party_wait_prefixsum_key_prefix
+//   - local total_wait_prefixsum_key
 //
 // ARGV:
 //   - party_id
@@ -87,6 +91,7 @@ local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
 local total_service_time_key = KEYS[3]
 local party_wait_prefixsum_key_prefix = KEYS[4] 
+local total_wait_prefixsum_key = KEYS[5]
 local party_id = ARGV[1]
 local estimated_service_time_field = ARGV[2]
 
@@ -113,5 +118,13 @@ else
 end
 
 redis.call('ZREM', waitlist_key, party_id)
-return {rank, est}
+local del_keys = {party_detail_key, party_wait_prefixsum_key_prefix .. party_id}
+local has_wait = redis.call('EXISTS', waitlist_key)
+if has_wait == 0 then
+    table.insert(del_keys, waitlist_key)
+    table.insert(del_keys, total_service_time_key)
+    table.insert(del_keys, total_wait_prefixsum_key)
+end
+redis.call('DEL', unpack(del_keys))
+return {rank, est, has_wait, del_keys}
 `

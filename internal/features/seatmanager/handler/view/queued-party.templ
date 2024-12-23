@@ -20,7 +20,10 @@ templ QueuedParty(props *QueuedPartyProps) {
 		<li><div>PartySize</div><div>{ strconv.Itoa(props.Size) }</div></li>
 		<li><div>RemainingWaitTime</div><div>{ props.RemainingWaitTime.String() }</div></li>
 		if props.ReadyForSeating {
-			<li><div>ReadyForSeating</div><div>Check-in</div></li>
+			<li>
+				<div>ReadyForSeating</div>
+				@SeatReady(props.ID)
+			</li>
 		} else {
 			<li><div>Status</div><div hx-ext="sse" sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) } sse-swap="notify:party:ready">{ string(props.Status) }</div></li>
 		}

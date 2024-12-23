@@ -281,7 +281,7 @@ func setupTestDepdencies(t *testing.T, seats int) *testDeps {
 		st.NewFixedRateEstimator(1*time.Minute),
 		eventbus,
 	)
-	hostdesk := hd.NewInstantServeHostDesk(logger, seats, hdr.NewInMemoryHostDeskRepository(logger), eventbus)
+	hostdesk := hd.NewInstantServeHostDesk(logger, seats, hdr.NewInMemoryHostDeskRepository(logger), eventbus, nil)
 	maxOptimisticRetries := 3
 
 	return &testDeps{

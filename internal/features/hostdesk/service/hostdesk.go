@@ -19,4 +19,6 @@ type HostDesk interface {
 	ServeImmediately(ctx context.Context, party *d.Party) error
 
 	CheckIn(ctx context.Context, party *w.QueuedParty) error
+
+	ServiceComplete(ctx context.Context, party *w.QueuedParty) error
 }
