@@ -67,7 +67,7 @@ func TestRedisEventBusSerializeDeserialize(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := bus.sub.Close()
+		err := bus.(*redisEventBus).sub.Close()
 		require.NoError(t, err)
 	})
 }

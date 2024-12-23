@@ -65,6 +65,15 @@ func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.Part
 		return false, domain.ErrPartyAlreadyExists
 	}
 
+	cap, v, err := h.GetCurrentCapacity(ctx)
+	if v != version {
+		return false, d.ErrVersionMismatch
+	}
+
+	if cap < seats {
+		return false, domain.ErrInsufficientCapacity
+	}
+
 	state := domain.NewPartyServiceFromPreserve(partyID, seats)
 	err = h.repo.OptimisticCreatePartyServiceState(ctx, state, version)
 

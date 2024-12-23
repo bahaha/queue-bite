@@ -34,6 +34,8 @@ func NewQueueFirstStrategy() PartyProcessingStrategy {
 	return &queueFirstProcessor{}
 }
 
+// FIXME: queue first strategy needs to know more queue details
+// like how many parties is waiting, current context have only how many parties in the queue
 func (p *queueFirstProcessor) DeterminePartyState(ctx context.Context, seatingCtx *SeatingContext) (domain.PartyStatus, bool) {
 	if !seatingCtx.SeatsAvailable {
 		return domain.PartyStatusWaiting, false
