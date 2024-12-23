@@ -49,7 +49,10 @@ func run(
 	redis := platform.NewRedis(cfg, logger)
 	eventRegistry := eb.NewEventRegistry()
 	eventbus := ebimpl.NewRedisEventBus(logger, redis.Client, eventRegistry)
-	instantHost := hd.NewInstantServeHostDesk(logger, cfg.HostDesk.InstantServeHostDeskSeatCapacity, hdimpl.NewInMemoryHostDeskRepository(logger), eventbus)
+	instantHost := hd.NewInstantServeHostDesk(logger,
+		cfg.HostDesk.InstantServeHostDeskSeatCapacity,
+		hdimpl.NewRedisHostDeskRepository(logger, redis.Client),
+		eventbus)
 
 	server := server.NewServer(
 		cfg,

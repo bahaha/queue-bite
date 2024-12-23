@@ -43,7 +43,9 @@ func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, d.V
 		return h.totalSeats, version, err
 	}
 
-	return h.totalSeats - totalUsed, version, nil
+	capacity := h.totalSeats - totalUsed
+	h.logger.LogDebug(INSTANT_SERVE, "current capacity", "capacity", capacity, "total used", totalUsed)
+	return capacity, version, nil
 }
 
 func (h *InstantServeHostDesk) NotifyPartyReady(ctx context.Context, party *wld.QueuedParty) error {
