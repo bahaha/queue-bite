@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Dev bool
 	// TODO: validate encryption key length by adding functionality with github.com/go-playground/validator/v10 in env module
-	CookieEncryptionKey string `env:"COOKIE_ENCRYPTION_KEY" required:"T"`
+	CookieEncryptionKey string `env:"SECRET_COOKIE_ENCRYPTION_KEY" required:"T"`
 
 	Server struct {
 		Host               string        `env:"SERVER_HOST" default:"localhost"`
@@ -30,11 +30,11 @@ type Config struct {
 		EntityTTL     time.Duration `env:"WAITLIST_ENTITY_TTL" default:"24h"`
 	}
 	ServiceEstimator struct {
-		FixedRateUnit time.Duration `env:"FIXED_RATE_SERVICE_ESTIMATOR_UNIT" default:"5m"`
+		FixedRateUnit time.Duration `env:"FIXED_RATE_SERVICE_ESTIMATOR_UNIT" default:"3s"`
 	}
 	HostDesk struct {
 		InstantServeHostDeskSeatCapacity   int           `env:"INSTANT_SERVE_HOST_DESK_SEAT_CAPACITY" default:"10"`
-		LinearServiceTimerDurationPerGuest time.Duration `env:"LINEAR_SERVICE_TIMER_DURATION_PER_GUEST" default:"10s"`
+		LinearServiceTimerDurationPerGuest time.Duration `env:"LINEAR_SERVICE_TIMER_DURATION_PER_GUEST" default:"3s"`
 	}
 	SeatManager struct {
 		PreserveMaxRetries int `env:"PRESERVE_SEAT_MAX_RETRIES" default:"3"`

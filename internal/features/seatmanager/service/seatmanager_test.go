@@ -39,7 +39,8 @@ func TestHandleNewPartyArrival(t *testing.T) {
 		deps := setupTestDepdencies(t, 10)
 		selection := NewOrderedSeatingStrategy(deps.waitlist)
 		processing := NewInstantServingStrategy()
-		service := NewSeatManager(deps.logger, deps.eventbus, deps.waitlist, deps.hostdesk, processing, selection, deps.maxOptimisticRetries)
+		logger := log.NewNoopLogger()
+		service := NewSeatManager(logger, deps.eventbus, deps.waitlist, deps.hostdesk, processing, selection, deps.maxOptimisticRetries)
 
 		t.Run("serving success", func(t *testing.T) {
 			queue, err := deps.waitlist.GetQueueStatus(ctx)
@@ -103,7 +104,7 @@ func TestHandleNewPartyArrival(t *testing.T) {
 		ctx := context.Background()
 		deps := setupTestDepdencies(t, 10)
 		selection := NewOrderedSeatingStrategy(deps.waitlist)
-		processing := NewQueueFirstStrategy()
+		processing := NewFairOrderStrategy()
 		service := NewSeatManager(deps.logger, deps.eventbus, deps.waitlist, deps.hostdesk, processing, selection, deps.maxOptimisticRetries)
 
 		t.Run("ready to check in", func(t *testing.T) {
@@ -123,12 +124,14 @@ func TestHandleNewPartyArrival(t *testing.T) {
 			queue, err = deps.waitlist.GetQueueStatus(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, 1, queue.TotalParties)
+			assert.Equal(t, 0, queue.WaitingParties)
 		})
 
 		t.Run("ready to check in in the queue if capacity still enough", func(t *testing.T) {
 			queue, err := deps.waitlist.GetQueueStatus(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, 1, queue.TotalParties)
+			assert.Equal(t, 0, queue.WaitingParties)
 
 			capacity, _, err := deps.hostdesk.GetCurrentCapacity(ctx)
 			require.NoError(t, err)
@@ -137,12 +140,18 @@ func TestHandleNewPartyArrival(t *testing.T) {
 			party := domain.NewParty("party-2", "name", 1)
 			result, err := service.ProcessNewParty(ctx, party)
 			assert.Equal(t, domain.PartyStatusReady, result.Status)
+
+			queue, err = deps.waitlist.GetQueueStatus(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 2, queue.TotalParties)
+			assert.Equal(t, 0, queue.WaitingParties)
 		})
 
 		t.Run("wait in queue if capacity is insufficient", func(t *testing.T) {
 			queue, err := deps.waitlist.GetQueueStatus(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, 2, queue.TotalParties)
+			assert.Equal(t, 0, queue.WaitingParties)
 
 			capacity, _, err := deps.hostdesk.GetCurrentCapacity(ctx)
 			require.NoError(t, err)
@@ -151,22 +160,32 @@ func TestHandleNewPartyArrival(t *testing.T) {
 			party := domain.NewParty("party-3", "name", 4)
 			result, err := service.ProcessNewParty(ctx, party)
 			assert.Equal(t, domain.PartyStatusWaiting, result.Status)
+
+			queue, err = deps.waitlist.GetQueueStatus(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 3, queue.TotalParties)
+			assert.Equal(t, 1, queue.WaitingParties)
 		})
 
-		// FIXME: queue first strategy needs to know more queue details like how many parties is waiting, current context have only how many parties in the queue
-		// t.Run("wait in queue even if the capacity is enough but there waiting parties in queue", func(t *testing.T) {
-		// 	queue, err := deps.waitlist.GetQueueStatus(ctx)
-		// 	require.NoError(t, err)
-		// 	assert.Equal(t, 3, queue.TotalParties)
-		//
-		// 	capacity, _, err := deps.hostdesk.GetCurrentCapacity(ctx)
-		// 	require.NoError(t, err)
-		// 	assert.Equal(t, 1, capacity)
-		//
-		// 	party := domain.NewParty("party-4", "name", 1)
-		// 	result, err := service.ProcessNewParty(ctx, party)
-		// 	assert.Equal(t, domain.PartyStatusWaiting, result.Status)
-		// })
+		t.Run("wait in queue even if the capacity is enough but there waiting parties in queue", func(t *testing.T) {
+			queue, err := deps.waitlist.GetQueueStatus(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 3, queue.TotalParties)
+			assert.Equal(t, 1, queue.WaitingParties)
+
+			capacity, _, err := deps.hostdesk.GetCurrentCapacity(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 1, capacity)
+
+			party := domain.NewParty("party-4", "name", 1)
+			result, err := service.ProcessNewParty(ctx, party)
+			assert.Equal(t, domain.PartyStatusWaiting, result.Status)
+
+			queue, err = deps.waitlist.GetQueueStatus(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 4, queue.TotalParties)
+			assert.Equal(t, 2, queue.WaitingParties)
+		})
 	})
 
 	t.Run("check in failed will fallback to ready in the waitlist", func(t *testing.T) {
@@ -208,7 +227,7 @@ func TestHandleNewPartyArrival(t *testing.T) {
 			hostdesk := hd.NewMockHostDesk(gomock.NewController(t))
 			deps := setupTestDepdencies(t, 10)
 			selection := NewOrderedSeatingStrategy(deps.waitlist)
-			processing := NewQueueFirstStrategy()
+			processing := NewFairOrderStrategy()
 			service := NewSeatManager(deps.logger, deps.eventbus, deps.waitlist, hostdesk, processing, selection, deps.maxOptimisticRetries)
 			hostdesk.
 				EXPECT().
@@ -232,7 +251,7 @@ func TestHandleNewPartyArrival(t *testing.T) {
 			hostdesk := hd.NewMockHostDesk(gomock.NewController(t))
 			deps := setupTestDepdencies(t, 10)
 			selection := NewOrderedSeatingStrategy(deps.waitlist)
-			processing := NewQueueFirstStrategy()
+			processing := NewFairOrderStrategy()
 			service := NewSeatManager(deps.logger, deps.eventbus, deps.waitlist, hostdesk, processing, selection, deps.maxOptimisticRetries)
 			gomock.InOrder(
 				hostdesk.

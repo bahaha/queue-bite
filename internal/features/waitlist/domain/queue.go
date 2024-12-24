@@ -22,7 +22,8 @@ func (p *QueuedParty) RemainingWaitTime() time.Duration {
 
 // QueueStatus provides information about the current state of the waitlist.
 type QueueStatus struct {
-	TotalParties int
+	TotalParties   int
+	WaitingParties int
 	// Estimated wait time for a new party joining now
 	CurrentWaitTime time.Duration
 }

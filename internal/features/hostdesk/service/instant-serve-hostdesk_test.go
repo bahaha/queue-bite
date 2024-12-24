@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"testing"
 
 	"github.com/redis/go-redis/v9"
@@ -22,7 +20,8 @@ import (
 )
 
 func TestPreserveSeats(t *testing.T) {
-	logger := log.NewZerologLogger(os.Stdout, true)
+	// logger := log.NewZerologLogger(os.Stdout, true)
+	logger := log.NewNoopLogger()
 	redisClient, cleanup := setupRedisContainer(t)
 	t.Cleanup(cleanup)
 
@@ -76,7 +75,8 @@ func TestPreserveSeats(t *testing.T) {
 }
 
 func TestTransferToOccupied(t *testing.T) {
-	logger := log.NewZerologLogger(os.Stdout, true)
+	// logger := log.NewZerologLogger(os.Stdout, true)
+	logger := log.NewNoopLogger()
 	redisClient, cleanup := setupRedisContainer(t)
 	t.Cleanup(cleanup)
 

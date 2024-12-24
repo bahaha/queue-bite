@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strconv"
 	"testing"
 )
@@ -73,7 +74,11 @@ func NewTestServer(t *testing.T, vars map[string]string, comps ...ServerComponen
 }
 
 func (s *TestServer) Env(key string) string {
-	return s.envVars[key]
+	v, ok := s.envVars[key]
+	if ok {
+		return v
+	}
+	return os.Getenv(key)
 }
 
 func (s *TestServer) URL(path string) string {

@@ -65,7 +65,7 @@ func run(
 		st.NewFixedRateEstimator(cfg.ServiceEstimator.FixedRateUnit),
 		wimpl.NewRedisWaitlistRepository(logger, redis.Client, cfg.Waitlist.EntityTTL, cfg.Waitlist.ScanChunkSize),
 		instantHost,
-		sm.NewQueueFirstStrategy(),
+		sm.NewFairOrderStrategy(),
 		sm.NewOrderedSeatingStrategy,
 	)
 	serverError := make(chan error, 1)

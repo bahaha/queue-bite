@@ -6,22 +6,26 @@ package redis
 //   - total_wait_prefixsum_key
 //   - party_wait_prefixsum_key
 //   - total_service_time_key
+//   - waiting_party_counter_key
 //
 // ARGV:
 //   - party_id
 //   - estimated_service_time
 //   - join_score
 //   - ttl
+//   - is_party_waiting
 const joinScript = `
 local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
 local total_wait_prefixsum_key = KEYS[3]
 local party_wait_prefixsum_key = KEYS[4]
 local total_service_time_key = KEYS[5]
+local waiting_party_counter_key = KEYS[6]
 local party_id = ARGV[1]
 local estimated_service_time = ARGV[2]
 local join_score = ARGV[3]
 local ttl = ARGV[4]
+local is_party_waiting = ARGV[5]
 
 -- Add to sorted set
 local wait_entries_ahead = redis.call('ZCARD', waitlist_key)
@@ -38,6 +42,10 @@ local total_service_time = redis.call('GET', total_service_time_key) or 0
 
 -- Set wait time prefix sum for this group with TTL
 redis.call('SET', party_wait_prefixsum_key, next_wait, 'EX', ttl)
+
+if is_party_waiting == "1" then
+    redis.call('INCR', waiting_party_counter_key)
+end
 
 return {success_cnt, wait_entries_ahead, next_wait - total_service_time}
 `
@@ -81,29 +89,41 @@ return {details, wait_time - total_service_time, position}
 //   - party_detail_key
 //   - total_service_time_key
 //   - party_wait_prefixsum_key_prefix
-//   - local total_wait_prefixsum_key
+//   - total_wait_prefixsum_key
+//   - waiting_party_counter_key
 //
 // ARGV:
 //   - party_id
 //   - estimated_service_time_field
+//   - status_field
+//   - status_party_wait_val
 const leaveScript = `
 local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
 local total_service_time_key = KEYS[3]
 local party_wait_prefixsum_key_prefix = KEYS[4] 
 local total_wait_prefixsum_key = KEYS[5]
+local waiting_party_counter_key = KEYS[6]
 local party_id = ARGV[1]
 local estimated_service_time_field = ARGV[2]
+local status_field = ARGV[3]
+local status_party_wait_val = ARGV[4]
 
 local rank = redis.call('ZRANK', waitlist_key, party_id)
 if not rank then
     return nil
 end
 
-local est = tonumber(redis.call('HGET', party_detail_key, estimated_service_time_field))
+local party = redis.call('HMGET', party_detail_key, estimated_service_time_field, status_field)
+local est = tonumber(party[1])
 if not est then
 -- TODO: find an approach to handle the state inconsistency
     return nil
+end
+
+local status = party[2]
+if status == status_party_wait_val then
+    redis.call('INCRBY', waiting_party_counter_key, -1)
 end
 
 if rank == 0 then

@@ -23,12 +23,11 @@ const (
 )
 
 type PartyServiceState struct {
-	ID           domain.PartyID `redis:"ID"`
-	Status       SeatStatus     `redis:"Status"`
-	SeatsCount   int            `redis:"SeatsCount"`
-	PreservedAt  time.Time      `redis:"PreservedAt"`
-	CheckedInAt  time.Time      `redis:"CheckedInAt"`
-	ServiceEndAt time.Time      `redis:"ServiceEndAt"`
+	ID          domain.PartyID `redis:"ID"`
+	Status      SeatStatus     `redis:"Status"`
+	SeatsCount  int            `redis:"SeatsCount"`
+	PreservedAt time.Time      `redis:"PreservedAt"`
+	CheckedInAt time.Time      `redis:"CheckedInAt"`
 }
 
 func NewPartyServiceFromPreserve(partyID domain.PartyID, seats int) *PartyServiceState {

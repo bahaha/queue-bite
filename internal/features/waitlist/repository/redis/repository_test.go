@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"os"
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
 	"queue-bite/internal/features/waitlist/domain"
@@ -24,7 +23,10 @@ func TestRedisWaitlistRepository(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: endpoint})
 	defer client.Close()
 
-	repo := NewRedisWaitlistRepository(log.NewZerologLogger(os.Stdout, true), client, 1*time.Minute, 2)
+	// logger :=log.NewZerologLogger(os.Stdout, true)
+	logger := log.NewNoopLogger()
+
+	repo := NewRedisWaitlistRepository(logger, client, 1*time.Minute, 2)
 	ctx := context.Background()
 
 	party := &domain.QueuedParty{
@@ -184,6 +186,107 @@ func TestRedisWaitlistRepository(t *testing.T) {
 		addedParty, err := repo.AddParty(ctx, party)
 		require.NoError(t, err)
 		assert.Equal(t, partyV.EstimatedServiceTime, addedParty.RemainingWaitTime())
+
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, status.TotalParties)
+		assert.Equal(t, partyV.EstimatedServiceTime+party.EstimatedServiceTime, status.CurrentWaitTime)
+	})
+}
+
+func TestWaitingPartyCounter(t *testing.T) {
+	endpoint, cleanup := setupRedisContainer(t)
+	defer cleanup()
+
+	client := redis.NewClient(&redis.Options{Addr: endpoint})
+	defer client.Close()
+
+	// logger :=log.NewZerologLogger(os.Stdout, true)
+	logger := log.NewNoopLogger()
+
+	repo := NewRedisWaitlistRepository(logger, client, 1*time.Minute, 2)
+	ctx := context.Background()
+
+	ready := &domain.QueuedParty{
+		Party: &d.Party{
+			ID:                   "test-party-ready",
+			Name:                 "test-party-name",
+			Status:               d.PartyStatusReady,
+			Size:                 4,
+			EstimatedServiceTime: 30 * time.Minute,
+		},
+	}
+
+	waiting := &domain.QueuedParty{}
+	copier.Copy(waiting, ready)
+	waiting.ID = "test-party-waiting"
+	waiting.Status = d.PartyStatusWaiting
+
+	waitingToReady := &domain.QueuedParty{}
+	copier.Copy(waitingToReady, waiting)
+	waiting.ID = "test-party-waitingII"
+
+	t.Run("ready party add to queue doesn't count", func(t *testing.T) {
+		_, err := repo.AddParty(ctx, ready)
+		require.NoError(t, err)
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, status.TotalParties)
+		assert.Equal(t, 0, status.WaitingParties)
+	})
+
+	t.Run("count when waiting party join", func(t *testing.T) {
+		_, err := repo.AddParty(ctx, waiting)
+		require.NoError(t, err)
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, status.TotalParties)
+		assert.Equal(t, 1, status.WaitingParties)
+
+		_, err = repo.AddParty(ctx, waitingToReady)
+		require.NoError(t, err)
+		status, err = repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 3, status.TotalParties)
+		assert.Equal(t, 2, status.WaitingParties)
+	})
+
+	t.Run("reduce when a waiting party leaves", func(t *testing.T) {
+		err := repo.RemoveParty(ctx, waiting.ID)
+		require.NoError(t, err)
+
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, status.TotalParties)
+		assert.Equal(t, 1, status.WaitingParties)
+	})
+
+	t.Run("keep count when a ready party leaves", func(t *testing.T) {
+		err := repo.RemoveParty(ctx, ready.ID)
+		require.NoError(t, err)
+
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, status.TotalParties)
+		assert.Equal(t, 1, status.WaitingParties)
+	})
+
+	t.Run("reduce when waiting change to ready", func(t *testing.T) {
+		party, err := repo.GetPartyDetails(ctx, waitingToReady.ID)
+		require.NoError(t, err)
+		assert.Equal(t, d.PartyStatusWaiting, party.Status)
+
+		err = repo.UpdatePartyStatus(ctx, waitingToReady.ID, d.PartyStatusReady)
+		require.NoError(t, err)
+
+		party, err = repo.GetPartyDetails(ctx, waitingToReady.ID)
+		require.NoError(t, err)
+		assert.Equal(t, d.PartyStatusReady, party.Status)
+
+		status, err := repo.GetQueueStatus(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, status.TotalParties)
+		assert.Equal(t, 0, status.WaitingParties)
 	})
 }
 

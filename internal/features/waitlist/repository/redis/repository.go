@@ -62,12 +62,14 @@ func (r *redisWaitlistRepository) AddParty(ctx context.Context, party *domain.Qu
 		r.keys.waitTimePrefixsum(),
 		r.keys.partyWaitTime(id),
 		r.keys.totalServiceTime(),
+		r.keys.waitingPartyCounter(),
 	}
 	joinArgs := []interface{}{
 		id,
 		int(party.EstimatedServiceTime.Seconds()),
 		time.Now().Unix(),
 		r.ttl,
+		party.Status == d.PartyStatusWaiting,
 	}
 	results, err := r.joinScript.Run(ctx, r.client, joinKeys, joinArgs...).Slice()
 	if err != nil {
@@ -92,9 +94,10 @@ func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.Par
 		r.keys.totalServiceTime(),
 		r.keys.partyWaitTimePrefix(),
 		r.keys.waitTimePrefixsum(),
+		r.keys.waitingPartyCounter(),
 	}
 
-	leaveArgs := []interface{}{partyID, "est"}
+	leaveArgs := []interface{}{partyID, "est", "status", d.PartyStatusWaiting}
 
 	results, err := r.leaveScript.Run(ctx, r.client, leaveKeys, leaveArgs...).Slice()
 	if err != nil && err != redis.Nil {
@@ -183,15 +186,30 @@ func (r *redisWaitlistRepository) GetQueueStatus(ctx context.Context) (*domain.Q
 	}
 	totalWait := deserializeTime(waitSecs)
 
+	totalServiceTime, err := r.client.Get(ctx, r.keys.totalServiceTime()).Result()
+	if err != nil && err != redis.Nil {
+		r.logger.LogErr(REDIS_WAITLIST, err, "could not get the total service time for those checked-in parties from redis")
+		return nil, fmt.Errorf("could not get the total service time for those checked-in parties from redis: %w", err)
+	}
+
+	totalServiceSecs := deserializeTime(totalServiceTime)
+
 	amount, err := r.client.ZCard(ctx, r.keys.waitingQueue()).Result()
 	if err != nil && err != redis.Nil {
 		r.logger.LogErr(REDIS_WAITLIST, err, "could not find how many entities in the waitlist queue")
 		return nil, fmt.Errorf("could not find how many entities in the waitlist queue: %w", err)
 	}
 
+	waiting, err := r.client.Get(ctx, r.keys.waitingPartyCounter()).Int64()
+	if err != nil && err != redis.Nil {
+		r.logger.LogErr(REDIS_WAITLIST, err, "could not find how many party were waiting")
+		return nil, fmt.Errorf("could not find how many party were waiting: %w", err)
+	}
+
 	return &domain.QueueStatus{
 		TotalParties:    int(amount),
-		CurrentWaitTime: totalWait,
+		WaitingParties:  int(waiting),
+		CurrentWaitTime: totalWait - totalServiceSecs,
 	}, nil
 }
 
@@ -244,11 +262,16 @@ func (r *redisWaitlistRepository) ScanParties(ctx context.Context) (<-chan *doma
 }
 
 func (r *redisWaitlistRepository) UpdatePartyStatus(ctx context.Context, partyID d.PartyID, status d.PartyStatus) error {
+	originalStatus := r.client.HGet(ctx, r.keys.partyDetails(partyID), "status").Val()
 	success := r.client.HSet(ctx, r.keys.partyDetails(partyID), "status", status).Val()
 	if success == 0 {
 		r.logger.LogDebug(REDIS_WAITLIST, "could not found party in waitlist queue for status update", "party id", partyID)
 	} else {
 		r.logger.LogDebug(REDIS_WAITLIST, "update party status", "party id", partyID, "status", status)
+	}
+
+	if status == d.PartyStatusReady && originalStatus == string(d.PartyStatusWaiting) {
+		r.client.IncrBy(ctx, r.keys.waitingPartyCounter(), -1)
 	}
 	return nil
 }

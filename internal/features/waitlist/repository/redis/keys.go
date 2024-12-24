@@ -17,6 +17,11 @@ func (k *queueKeys) partyDetails(id domain.PartyID) string {
 	return fmt.Sprintf("queue:party:%s", id)
 }
 
+// queue:waiting:count
+func (k *queueKeys) waitingPartyCounter() string {
+	return "queue:waiting:count"
+}
+
 // "queue:wait:sum"
 func (k *queueKeys) waitTimePrefixsum() string {
 	return "queue:wait:sum"

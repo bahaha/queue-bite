@@ -28,16 +28,16 @@ func (p *instantServiceProcessor) DeterminePartyState(ctx context.Context, seati
 	return domain.PartyStatusServing, true
 }
 
-type queueFirstProcessor struct{}
+type fairOrderProcessor struct{}
 
-func NewQueueFirstStrategy() PartyProcessingStrategy {
-	return &queueFirstProcessor{}
+func NewFairOrderStrategy() PartyProcessingStrategy {
+	return &fairOrderProcessor{}
 }
 
 // FIXME: queue first strategy needs to know more queue details
 // like how many parties is waiting, current context have only how many parties in the queue
-func (p *queueFirstProcessor) DeterminePartyState(ctx context.Context, seatingCtx *SeatingContext) (domain.PartyStatus, bool) {
-	if !seatingCtx.SeatsAvailable {
+func (p *fairOrderProcessor) DeterminePartyState(ctx context.Context, seatingCtx *SeatingContext) (domain.PartyStatus, bool) {
+	if !seatingCtx.SeatsAvailable || seatingCtx.WaitingParties != 0 {
 		return domain.PartyStatusWaiting, false
 	}
 

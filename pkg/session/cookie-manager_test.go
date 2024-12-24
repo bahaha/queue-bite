@@ -28,7 +28,7 @@ func TestCookieEncryptDecrypt(t *testing.T) {
 	cfg := NewCookieConfig("test_cookie", "example.com")
 	w := httptest.NewRecorder()
 
-	if err := m.SetCookie(w, *cfg, payload); err != nil {
+	if err := m.SetCookie(w, cfg, payload); err != nil {
 		t.Fatalf("failed to set cookie: %v", err)
 	}
 
