@@ -28,17 +28,20 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Get("/", redirect("/waitlist", http.StatusTemporaryRedirect))
 	r.Get("/healthz", healthHandler(s.redis))
 
+	cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
+	seatManagerHandler := sm.NewSeatManagerHandler()
+
 	r.Route("/waitlist", func(r chi.Router) {
-		seatManagerHandler := sm.NewSeatManagerHandler()
 		vitrineHandler := sm.NewVitrineHandler()
-		cookieQueuedParty := &s.cookieCfgs.QueuedPartyCookie
 
 		r.Get("/", vitrineHandler.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.waitlist))
 		r.Post("/join", seatManagerHandler.HandleNewPartyArrival(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty, s.seatmanager))
-		r.Post("/check-in/{partyID}", seatManagerHandler.HandlePartyCheckIn(s.logger, s.seatmanager))
+		r.Post("/check-in", seatManagerHandler.HandlePartyCheckIn(s.logger, s.seatmanager, s.cookieManager, cookieQueuedParty))
 	})
 
 	r.Get("/sse/waitlist/{partyID}", sse.HandleQueuedPartyServerSentEventConn(s.logger, s.sse, s.waitlist))
+
+	r.Get("/yummy", seatManagerHandler.HandleServingDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.hostdesk))
 
 	return r
 }

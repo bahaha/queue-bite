@@ -148,10 +148,13 @@ func (r *RedisHostDeskRepository) TransferToOccupied(ctx context.Context, partyI
 		return domain.ErrPartyNoPreservedSeats
 	}
 
-	seats, _ := strconv.ParseInt(results[1].(string), 10, 64)
+	seats, ok := results[1].(int64)
+	if !ok {
+		seats, _ = strconv.ParseInt(results[1].(string), 10, 64)
+	}
 	script := redis.NewScript(transferToOccupiedScript)
 	transferKeys := []string{r.keys.getStatsKey(), r.keys.getPartyStateKey(partyID)}
-	checkedInAt := time.Now().Unix()
+	checkedInAt := time.Now().UTC()
 	transferVals := []interface{}{seats, domain.SeatOccupied, checkedInAt}
 	_, err = script.Run(ctx, r.client, transferKeys, transferVals...).Result()
 
@@ -169,6 +172,7 @@ func (r *RedisHostDeskRepository) TransferToOccupied(ctx context.Context, partyI
 
 func (r *RedisHostDeskRepository) GetPartyServiceState(ctx context.Context, partyID d.PartyID) (*domain.PartyServiceState, error) {
 	res := r.client.HGetAll(ctx, r.keys.getPartyStateKey(partyID))
+	r.logger.LogDebug(REDIS_HOSTDESK, "get party service state", "party", res.Val(), "key", r.keys.getPartyStateKey(partyID))
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
@@ -179,6 +183,7 @@ func (r *RedisHostDeskRepository) GetPartyServiceState(ctx context.Context, part
 
 	state := &domain.PartyServiceState{}
 	if err := res.Scan(state); err != nil {
+		r.logger.LogErr(REDIS_HOSTDESK, err, "could not parse party service state")
 		return nil, err
 	}
 
@@ -241,7 +246,7 @@ func (r *RedisHostDeskRepository) OptimisticCreatePartyServiceState(ctx context.
 		string(state.ID),
 		string(state.Status),
 		state.SeatsCount,
-		time.Now().Unix(),
+		time.Now().UTC(),
 	}
 	_, err := script.Run(ctx, r.client, createKeys, createVals...).Result()
 	if err != nil && err != redis.Nil {
@@ -283,6 +288,7 @@ const endOfPartyServiceScript = `
         return 0
     end
     redis.call('HINCRBY', stats_key, "Occupied", -tonumber(seats))
+    redis.call('HINCRBY', stats_key, "Version", 1)
     return redis.call('DEL', party_state_key)
 `
 

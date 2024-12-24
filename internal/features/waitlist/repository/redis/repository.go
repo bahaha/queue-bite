@@ -102,9 +102,6 @@ func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.Par
 		return fmt.Errorf("could not run leave queue script: %w", err)
 	}
 
-	fmt.Println("------------------------")
-	fmt.Println(results...)
-	fmt.Println("------------------------")
 	if results == nil {
 		err := domain.ErrPartyNotFound
 		r.logger.LogErr(REDIS_WAITLIST, err, "inconsistency state: either could not find the party in the queue list or we could not find the estimated service time for the party", "party id", partyID)

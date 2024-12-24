@@ -132,3 +132,13 @@ func (h *InstantServeHostDesk) ServiceComplete(ctx context.Context, party *wld.Q
 	}
 	return nil
 }
+
+func (h *InstantServeHostDesk) HasPartyOccupiedSeat(ctx context.Context, partyID d.PartyID) bool {
+	state, err := h.repo.GetPartyServiceState(ctx, partyID)
+	h.logger.LogDebug(INSTANT_SERVE, "get party service state", "party", state)
+	if err != nil || state == nil {
+		return false
+	}
+
+	return state.Status == domain.SeatOccupied
+}

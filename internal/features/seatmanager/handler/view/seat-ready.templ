@@ -1,13 +1,12 @@
 package view
 
 import (
-	"fmt"
 	"queue-bite/internal/domain"
 	"queue-bite/pkg/components/ui"
 )
 
 templ SeatReady(partyID domain.PartyID) {
-	<form hx-post={ fmt.Sprintf("/waitlist/check-in/%s", string(partyID)) } hx-target="body">
+	<form hx-post="/waitlist/check-in" hx-target="main" hx-swap="innerHTML">
 		<button
 			{ ui.NewButton(ui.ButtonProps())... }
 		>

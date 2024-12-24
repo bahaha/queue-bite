@@ -167,11 +167,17 @@ func (r *InMemoryHostDeskRepository) UpdatePartyServiceState(ctx context.Context
 }
 
 func (r *InMemoryHostDeskRepository) EndPartyServiceState(ctx context.Context, partyID d.PartyID) error {
-	_, exists := r.state[partyID]
+	state, exists := r.state[partyID]
 	if !exists {
 		return domain.ErrPartyNotFound
 	}
 
+	stats := r.stats.Load().(hostdeskStats)
+	r.stats.Store(hostdeskStats{
+		Occupied:  stats.Occupied - state.SeatsCount,
+		Preserved: stats.Preserved,
+		Version:   stats.Version + 1,
+	})
 	delete(r.state, partyID)
 	return nil
 }

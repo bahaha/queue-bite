@@ -21,4 +21,6 @@ type HostDesk interface {
 	CheckIn(ctx context.Context, party *w.QueuedParty) error
 
 	ServiceComplete(ctx context.Context, party *w.QueuedParty) error
+
+	HasPartyOccupiedSeat(ctx context.Context, partyID d.PartyID) bool
 }

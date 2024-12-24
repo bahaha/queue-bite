@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	d "queue-bite/internal/domain"
 	"queue-bite/internal/features/hostdesk/domain"
 	"queue-bite/internal/features/hostdesk/repository"
+	w "queue-bite/internal/features/waitlist/domain"
 	"queue-bite/internal/platform/eventbus"
 	ebr "queue-bite/internal/platform/eventbus/redis"
 )
@@ -69,6 +71,40 @@ func TestPreserveSeats(t *testing.T) {
 			ok, err := service.PreserveSeats(context.Background(), "party-2", 2, 0)
 			assert.ErrorIs(t, err, d.ErrVersionMismatch)
 			assert.False(t, ok)
+		}
+	})
+}
+
+func TestTransferToOccupied(t *testing.T) {
+	logger := log.NewZerologLogger(os.Stdout, true)
+	redisClient, cleanup := setupRedisContainer(t)
+	t.Cleanup(cleanup)
+
+	inmemoryRepo := repository.NewInMemoryHostDeskRepository(logger)
+	redisRepo := repository.NewRedisHostDeskRepository(logger, redisClient)
+	registry := eventbus.NewEventRegistry()
+	eventbus := ebr.NewRedisEventBus(logger, redisClient, registry)
+	totalSeats := 12
+	impl := []repository.HostDeskRepository{inmemoryRepo, redisRepo}
+	svc := []HostDesk{}
+	for _, repo := range impl {
+		svc = append(svc, NewInstantServeHostDesk(logger, totalSeats, repo, eventbus, nil))
+	}
+
+	t.Run("preserved seats to occupied seats", func(t *testing.T) {
+		for _, service := range svc {
+			ok, err := service.PreserveSeats(context.Background(), "party-1", 2, 0)
+			assert.NoError(t, err)
+			assert.True(t, ok)
+
+			exists := service.HasPartyOccupiedSeat(context.Background(), "party-1")
+			assert.False(t, exists)
+
+			err = service.CheckIn(context.Background(), &w.QueuedParty{Party: &d.Party{ID: "party-1", Status: d.PartyStatusReady}})
+			require.NoError(t, err)
+
+			exists = service.HasPartyOccupiedSeat(context.Background(), "party-1")
+			assert.True(t, exists)
 		}
 	})
 }
