@@ -43,6 +43,9 @@ redis-run:
 
 # Create DB container
 docker-run:
+	@if grep -q "%SECRET_COOKIE_ENCRYPTION_KEY%" .env.docker; then \
+		sed -i.bak 's#%SECRET_COOKIE_ENCRYPTION_KEY%#'`LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1`'#' .env.docker && rm .env.docker.bak; \
+	fi
 	@cp .env.docker .env
 	@if command -v docker compose >/dev/null 2>&1; then \
 		docker compose up --build; \
