@@ -46,6 +46,7 @@ func (bus *redisEventBus) Publish(ctx context.Context, event eventbus.Event) err
 		bus.logger.LogErr(REDIS_EVENTBUS, err, "failed to publish event to topic", "topic", event.Topic(), "event", event)
 		return err
 	}
+	bus.logger.LogDebug(REDIS_EVENTBUS, "publish event to topic", "topic", event.Topic(), "event", event)
 	return nil
 }
 

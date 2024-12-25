@@ -25,7 +25,17 @@ templ QueuedParty(props *QueuedPartyProps) {
 				@SeatReady(props.ID)
 			</li>
 		} else {
-			<li><div>Status</div><div hx-ext="sse" sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) } sse-swap="notify:party:ready">{ string(props.Status) }</div></li>
+			<li>
+				<div>Status</div>
+				<div
+					hx-ext="sse"
+					sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) }
+					sse-swap="notify:party:ready"
+					hx-swap="outerHTML"
+				>
+					{ string(props.Status) }
+				</div>
+			</li>
 		}
 	</ul>
 }

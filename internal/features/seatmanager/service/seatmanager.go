@@ -194,6 +194,7 @@ func (m *seatManager) processAvailableCapacity(ctx context.Context, availableSea
 	}
 
 	if nextParty != nil {
+		m.logger.LogDebug(SEAT_MANAGER, "available seats are enough for next party", "party", nextParty)
 		if err := m.hostdesk.NotifyPartyReady(ctx, nextParty); err != nil {
 			return err
 		}

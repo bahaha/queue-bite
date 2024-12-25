@@ -20,6 +20,7 @@ func (s *sse) HandleNotifyPartyReady(ctx context.Context, event eventbus.Event) 
 	}
 
 	notifyClient(client, TopicNotifyPartyReady, view.SeatReady(e.PartyID))
+	s.logger.LogDebug(SSE, "write seat ready button for next party", "party id", e.PartyID)
 	return nil
 }
 

@@ -39,6 +39,7 @@ func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus) *sse {
 		mu:       sync.RWMutex{},
 	}
 
+	svc.subscribeToEvents()
 	return svc
 }
 

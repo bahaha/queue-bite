@@ -6,11 +6,12 @@ import (
 )
 
 templ SeatReady(partyID domain.PartyID) {
-	<form hx-post="/waitlist/check-in" hx-target="main" hx-swap="innerHTML">
-		<button
-			{ ui.NewButton(ui.ButtonProps())... }
-		>
-			Check in
-		</button>
-	</form>
+	<button
+		hx-post="/waitlist/check-in"
+		hx-target="main"
+		hx-swap="innerHTML"
+		{ ui.NewButton(ui.ButtonProps())... }
+	>
+		Check in
+	</button>
 }

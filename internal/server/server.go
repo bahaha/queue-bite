@@ -78,6 +78,7 @@ func NewServer(
 	}
 
 	NewServer.RegisterEvents(eventRegistry)
+	seatManager.WatchSeatVacancy(context.Background())
 
 	// Declare Server config
 	server := &http.Server{

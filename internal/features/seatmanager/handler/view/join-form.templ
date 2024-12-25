@@ -27,7 +27,7 @@ func NewJoinFormData() *JoinFormData {
 }
 
 templ JoinForm(props *JoinFormData) {
-	<form hx-post="/waitlist/join" hx-target="this" class="space-y-8">
+	<form hx-post="/waitlist/join" hx-target="this" hx-swap="outerHTML" class="space-y-8">
 		@form.FormItem(form.NewFormItemProps().WithFormItem(props.PartyName)) {
 			<label
 				{ ui.NewLabel(ui.LabelProps().

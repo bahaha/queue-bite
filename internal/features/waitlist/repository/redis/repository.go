@@ -236,7 +236,6 @@ func (r *redisWaitlistRepository) ScanParties(ctx context.Context) (<-chan *doma
 			}
 
 			if len(ids) == 0 {
-				r.logger.LogDebug(REDIS_WAITLIST, "empty waitlist")
 				return
 			}
 
@@ -263,8 +262,8 @@ func (r *redisWaitlistRepository) ScanParties(ctx context.Context) (<-chan *doma
 
 func (r *redisWaitlistRepository) UpdatePartyStatus(ctx context.Context, partyID d.PartyID, status d.PartyStatus) error {
 	originalStatus := r.client.HGet(ctx, r.keys.partyDetails(partyID), "status").Val()
-	success := r.client.HSet(ctx, r.keys.partyDetails(partyID), "status", status).Val()
-	if success == 0 {
+	_, err := r.client.HSet(ctx, r.keys.partyDetails(partyID), "status", status).Result()
+	if err != nil {
 		r.logger.LogDebug(REDIS_WAITLIST, "could not found party in waitlist queue for status update", "party id", partyID)
 	} else {
 		r.logger.LogDebug(REDIS_WAITLIST, "update party status", "party id", partyID, "status", status)

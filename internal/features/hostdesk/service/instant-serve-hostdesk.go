@@ -13,6 +13,7 @@ import (
 )
 
 var INSTANT_SERVE = "hostdesk/instant-serve"
+var SKIP_VERSION_CHECK = d.Version(-1)
 
 type InstantServeHostDesk struct {
 	logger       log.Logger
@@ -50,8 +51,15 @@ func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, d.V
 }
 
 func (h *InstantServeHostDesk) NotifyPartyReady(ctx context.Context, party *wld.QueuedParty) error {
-	h.eventbus.Publish(ctx, &domain.SeatsPreservedEvent{PartyID: party.ID})
-	h.logger.LogDebug(INSTANT_SERVE, "seats preserved, notify party ready", "party id", party.ID)
+	preserved, err := h.PreserveSeats(ctx, party.ID, party.Size, SKIP_VERSION_CHECK)
+	if err != nil {
+		return err
+	}
+
+	if preserved {
+		h.eventbus.Publish(ctx, &domain.SeatsPreservedEvent{PartyID: party.ID})
+		h.logger.LogDebug(INSTANT_SERVE, "seats preserved, notify party ready", "party id", party.ID)
+	}
 	return nil
 }
 
@@ -67,7 +75,7 @@ func (h *InstantServeHostDesk) PreserveSeats(ctx context.Context, partyID d.Part
 	}
 
 	cap, v, err := h.GetCurrentCapacity(ctx)
-	if v != version {
+	if version != SKIP_VERSION_CHECK && v != version {
 		return false, d.ErrVersionMismatch
 	}
 
@@ -128,8 +136,10 @@ func (h *InstantServeHostDesk) ServiceComplete(ctx context.Context, party *wld.Q
 	}
 	h.logger.LogDebug(INSTANT_SERVE, "service completed", "party", party)
 	if err := h.eventbus.Publish(ctx, domain.PartyServiceCompeletedEvent{PartyID: party.ID}); err != nil {
+		h.logger.LogErr(INSTANT_SERVE, err, "could not publish service completed event")
 		return err
 	}
+	h.logger.LogDebug(INSTANT_SERVE, "publish party service completed event", "party id", party.ID)
 	return nil
 }
 
