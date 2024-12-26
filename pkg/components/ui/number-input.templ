@@ -1,0 +1,23 @@
+package ui
+
+templ NumberInputRoot(props *numberInputProps) {
+	<div x-data={ NewNumberInputState(props) }>
+		{ children... }
+	</div>
+}
+
+templ NumberInputPresetContainer() {
+	<div class="grid grid-cols-3 gap-2 mb-3">
+		<template x-for="preset in presets" :key="preset">
+			{ children... }
+		</template>
+	</div>
+}
+
+templ NumberInput() {
+	<div class="flex items-center gap-4 bg-background rounded-lg">
+		<button type="button" class="p-4 bg-background hover:bg-muted-foreground/30 rounded-l-lg" @click="value = Math.max(min, value - 1)">-</button>
+		{ children... }
+		<button type="button" class="p-4 bg-background hover:bg-muted-foreground/20 rounded-r-lg" @click="value = Math.min(max, value + 1)">+</button>
+	</div>
+}

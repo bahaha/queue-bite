@@ -34,8 +34,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.Route("/waitlist", func(r chi.Router) {
 		vitrineHandler := sm.NewVitrineHandler()
 
-		r.Get("/", vitrineHandler.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.waitlist))
-		r.Post("/join", seatManagerHandler.HandleNewPartyArrival(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty, s.seatmanager))
+		r.Get("/", vitrineHandler.HandleVitrineDisplay(s.logger, s.cookieManager, cookieQueuedParty, s.waitlist, s.hostdesk))
+		r.Post("/join", seatManagerHandler.HandleNewPartyArrival(s.logger, s.validate, s.translators, s.cookieManager, cookieQueuedParty, s.seatmanager, s.hostdesk))
 		r.Post("/check-in", seatManagerHandler.HandlePartyCheckIn(s.logger, s.seatmanager, s.cookieManager, cookieQueuedParty))
 	})
 

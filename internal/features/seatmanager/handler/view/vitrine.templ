@@ -13,15 +13,40 @@ type VitrinePageData struct {
 }
 
 templ VitrinePage(page *VitrinePageData) {
+	{{ hasWaitingParties := page.QueueStatus.TotalParties != 0 }}
 	@layout.Base() {
 		if page.QueuedPartyProps == nil {
-			@JoinForm(page.Form)
+			<main
+				class="max-w-lg mx-auto p-9 space-y-8 shadow-sm bg-muted rounded-lg self-center sm:-translate-y-8"
+			>
+				<div class="space-y-4">
+					<h1 class="text-4xl font-semibold">Restaurant Waitlist</h1>
+					<div class="flex items-center gap-4 md:gap-6 text-muted-foreground">
+						if hasWaitingParties {
+							<div class="flex items-center gap-2">
+								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/users-round.svg"/>
+								if page.QueueStatus.TotalParties == 1 {
+									<span>1 party waiting</span>
+								} else {
+									<span>{ strconv.Itoa(page.QueueStatus.TotalParties) } parties waiting</span>
+								}
+							</div>
+							<div class="flex items-center gap-2">
+								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/clock-4.svg"/>
+								<span>{ page.QueueStatus.CurrentWaitTime.String() } wait</span>
+							</div>
+						} else {
+							<div class="flex items-center gap-2 text-success">
+								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/clock-4.svg"/>
+								<span>No wait time</span>
+							</div>
+						}
+					</div>
+				</div>
+				@JoinForm(page.Form)
+			</main>
 		} else {
 			@QueuedParty(page.QueuedPartyProps)
-		}
-		if page.QueueStatus != nil {
-			<div>Total parties: { strconv.Itoa(page.QueueStatus.TotalParties) }</div>
-			<div>EstimatedWait: { page.QueueStatus.CurrentWaitTime.String() }</div>
 		}
 	}
 }

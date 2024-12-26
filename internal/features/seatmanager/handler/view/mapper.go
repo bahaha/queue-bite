@@ -10,6 +10,7 @@ import (
 func ToVitrineProps(
 	queuedParty *domain.QueuedParty,
 	status *domain.QueueStatus,
+	totalCapacity int,
 ) *VitrinePageData {
 	pageProps := &VitrinePageData{}
 
@@ -20,7 +21,7 @@ func ToVitrineProps(
 	if queuedParty != nil {
 		pageProps.QueuedPartyProps = NewQueuedPartyProps(queuedParty)
 	} else {
-		pageProps.Form = NewJoinFormData()
+		pageProps.Form = NewJoinFormData(totalCapacity)
 	}
 
 	return pageProps

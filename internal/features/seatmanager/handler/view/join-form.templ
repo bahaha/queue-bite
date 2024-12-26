@@ -5,54 +5,107 @@ import (
 	"queue-bite/pkg/components/ui/form"
 	fm "queue-bite/pkg/form"
 	"queue-bite/pkg/utils"
+	"strconv"
 )
 
 type JoinFormData struct {
 	PartyName    *fm.FormItemContext
 	PartySize    *fm.FormItemContext
+	TotalCapcity int
 	ErrorMessage string
+
+	PartySizePresets []int
 }
 
-func NewJoinFormData() *JoinFormData {
+func NewJoinFormData(totalCapacity int) *JoinFormData {
 	return &JoinFormData{
 		PartyName: &fm.FormItemContext{
 			ID:   utils.GenerateID(),
 			Name: "PartyName",
 		},
 		PartySize: &fm.FormItemContext{
-			ID:   utils.GenerateID(),
-			Name: "PartySize",
+			ID:    utils.GenerateID(),
+			Name:  "PartySize",
+			Value: 2,
 		},
+		TotalCapcity:     totalCapacity,
+		PartySizePresets: []int{1, 2, 4, 5, 6, 8},
 	}
 }
 
 templ JoinForm(props *JoinFormData) {
-	<form hx-post="/waitlist/join" hx-target="this" hx-swap="outerHTML" class="space-y-8">
-		@form.FormItem(form.NewFormItemProps().WithFormItem(props.PartyName)) {
+	<form
+		hx-post="/waitlist/join"
+		hx-target="this"
+		hx-swap="outerHTML"
+		class="space-y-3 sm:space-y-6"
+	>
+		@form.FormItem(form.NewFormItemProps().WithFormItem(props.PartyName).WithClass("space-y-2")) {
 			<label
 				{ ui.NewLabel(ui.LabelProps().
                         WithinContext(ctx, props.PartyName.ID).
+                        WithClass("text-2xl").
                         WithRequired(true))... }
 			>
 				Name
 			</label>
+			<p class="text-muted-foreground text-xs">Enter the name for your reservation</p>
 			<input
-				placeholder="Enter your name"
+				placeholder="Your name"
 				required
+				autofocus
 				{ ui.NewInput(ui.InputProps().
                         WithinContext(ctx, props.PartyName.ID))... }
 			/>
 		}
-		<input name="PartySize" type="number" value="2"/>
+		@form.FormItem(form.NewFormItemProps().WithFormItem(props.PartySize).WithClass("space-y-2")) {
+			<label
+				{ ui.NewLabel(ui.LabelProps().
+                        WithinContext(ctx, props.PartySize.ID).
+                        WithClass("text-2xl").
+                        WithRequired(true))... }
+			>
+				Party Size
+			</label>
+			<p class="text-muted-foreground text-xs">Select number of guests</p>
+			<p class="text-muted-foreground text-sm">Under maximum capacity ({ strconv.Itoa(props.TotalCapcity) } people)</p>
+			@ui.NumberInputRoot(ui.NumberInputProps().
+				WithRange(1, props.TotalCapcity).
+				WithPresets(ui.NewNumberInputPresets(props.PartySizePresets)).
+				WithinContext(ctx, props.PartySize.ID),
+			) {
+				@ui.NumberInputPresetContainer() {
+					<div
+						{ ui.NewNumberInputPresetItem(ui.
+                                NewNumberInputPresetItemProps().
+                                WithClass("flex gap-4 justify-center items-baseline bg-background border-2 rounded-lg p-4 hover:border-primary/90").
+                                WithStateStyles("border-primary", "border-border"),
+                                )... }
+					>
+						<span class="text-xl font-semibold after:content-['x']" { ui.BindNumberInputValue()... }></span>
+						<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/user-round.svg"/>
+					</div>
+				}
+				@ui.NumberInput() {
+					<input
+						{ ui.NewNumberInputModel()... }
+						{ ui.NewInput(ui.InputProps().
+                        WithClass("w-full text-xl bg-transparent text-center border-0 focus-visible:ring-0").
+                        WithinContext(ctx, props.PartySize.ID))... }
+					/>
+				}
+			}
+		}
 		<button
+			type="submit"
 			{ ui.NewButton(ui.ButtonProps().
                     WithClass("w-full").
                     WithSize(ui.Button.Sizes.Large))... }
 		>
-			Join Waitlist
+			Join Now
 		</button>
+		if props.ErrorMessage != "" {
+			<div class="text-destructive">{ props.ErrorMessage }</div>
+		}
 	</form>
-	if props.ErrorMessage != "" {
-		<div class="bg-destructive">{ props.ErrorMessage }</div>
-	}
 }

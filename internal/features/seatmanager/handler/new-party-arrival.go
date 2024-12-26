@@ -1,16 +1,18 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-playground/form/v4"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/jinzhu/copier"
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
+	hd "queue-bite/internal/features/hostdesk/service"
 	"queue-bite/internal/features/seatmanager/domain"
 	"queue-bite/internal/features/seatmanager/handler/view"
 	"queue-bite/internal/features/seatmanager/service"
@@ -29,8 +31,10 @@ func (*seatManagerHandler) HandleNewPartyArrival(
 	cookieManager *session.CookieManager,
 	cookieQueudParty *session.CookieConfig,
 	seatManager service.SeatManager,
+	hostdesk hd.HostDesk,
 ) http.HandlerFunc {
 	formDecoder := form.NewDecoder()
+	totalCapacity, _ := hostdesk.GetTotalCapacity(context.Background())
 
 	type NewPartyArrivalRequest struct {
 		PartyName string `validate:"required"`
@@ -40,15 +44,23 @@ func (*seatManagerHandler) HandleNewPartyArrival(
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload NewPartyArrivalRequest
 		if err := validateNewPartyArrivalRequest(r, formDecoder, validate, &payload); err != nil {
-			copier.Copy(view.NewJoinFormData(), &payload)
-			handleNewPartyArrivalValidationError(logger, uni, w, r, err, payload)
+			handleNewPartyArrivalValidationError(logger, uni, w, r, err, payload, totalCapacity)
+			return
+		}
+
+		if payload.PartySize > totalCapacity {
+			formData := view.NewJoinFormData(totalCapacity)
+			fm.CopyFormValueFromPayload(formData, payload)
+			formData.PartySize.Invalid = true
+			formData.PartySize.ErrorMessage = fmt.Sprintf("Sorry, we could only take reservation under people %d right now.", totalCapacity)
+			templ.Handler(view.JoinForm(formData)).ServeHTTP(w, r)
 			return
 		}
 
 		party := d.NewParty(d.PartyID(utils.GenerateID()), payload.PartyName, payload.PartySize)
 		queuedParty, err := seatManager.ProcessNewParty(r.Context(), party)
 		if err != nil {
-			handleErrorOnNewPartyArrival(logger, w, r, payload, err)
+			handleErrorOnNewPartyArrival(logger, w, r, payload, totalCapacity, err)
 			return
 		}
 
@@ -76,10 +88,11 @@ func handleNewPartyArrivalValidationError(
 	r *http.Request,
 	err error,
 	payload interface{},
+	totalCapacity int,
 ) {
 	logger.LogErr(SEAT_MANAGER_ARRIVAL, err, "join waitlist validation failed")
 	trans, _ := uni.FindTranslator(utils.CollectAcceptLanguages(r)...)
-	formData := view.NewJoinFormData()
+	formData := view.NewJoinFormData(totalCapacity)
 	if validationErrs, ok := err.(validator.ValidationErrors); ok {
 		fm.CopyFormValueFromPayload(formData, payload)
 		fm.CollectErrorsToForm(trans, formData, validationErrs)
@@ -92,13 +105,14 @@ func handleErrorOnNewPartyArrival(
 	resp http.ResponseWriter,
 	req *http.Request,
 	payload interface{},
+	totalCapacity int,
 	err error,
 ) {
 	logger.LogErr(SEAT_MANAGER_ARRIVAL, err, "handle new party arrival failed")
 	switch err {
 	case domain.ErrPreserveSeats:
 	case domain.ErrJoinWaitlist:
-		formData := view.NewJoinFormData()
+		formData := view.NewJoinFormData(totalCapacity)
 		fm.CopyFormValueFromPayload(formData, payload)
 		formData.ErrorMessage = "Failed to preserve seats or join waitlist, please try again later."
 		templ.Handler(view.JoinForm(formData)).ServeHTTP(resp, req)

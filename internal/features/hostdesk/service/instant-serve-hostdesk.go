@@ -39,6 +39,10 @@ func NewInstantServeHostDesk(
 	}
 }
 
+func (h *InstantServeHostDesk) GetTotalCapacity(ctx context.Context) (int, error) {
+	return h.totalSeats, nil
+}
+
 func (h *InstantServeHostDesk) GetCurrentCapacity(ctx context.Context) (int, d.Version, error) {
 	totalUsed, version, err := h.repo.GetTotalSeatsInUse(ctx)
 	if err != nil {

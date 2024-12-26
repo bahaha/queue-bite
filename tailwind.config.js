@@ -2,7 +2,7 @@
 module.exports = {
     content: [
         "./internal/layouts/*.{html,templ}",
-        "./internal/features/**/views/*.{html,templ}",
+        "./internal/features/**/view/*.{html,templ}",
         "./pkg/components/**/*.{html,templ,go}",
         "!./pkg/components/**/*_test.go",
     ],
@@ -49,6 +49,14 @@ module.exports = {
                 card: {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
+                },
+                success: {
+                    DEFAULT: "hsl(var(--success))",
+                    foreground: "hsl(var(--success-foreground))",
+                },
+                card: {
+                    DEFAULT: "hsl(var(--warning))",
+                    foreground: "hsl(var(--warning-foreground))",
                 },
             },
             borderRadius: {

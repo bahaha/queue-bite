@@ -8,6 +8,8 @@ import (
 )
 
 type HostDesk interface {
+	GetTotalCapacity(ctx context.Context) (int, error)
+
 	GetCurrentCapacity(ctx context.Context) (int, d.Version, error)
 
 	NotifyPartyReady(ctx context.Context, party *w.QueuedParty) error
