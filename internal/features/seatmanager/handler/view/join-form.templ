@@ -1,6 +1,7 @@
 package view
 
 import (
+	"queue-bite/pkg/components/svg"
 	"queue-bite/pkg/components/ui"
 	"queue-bite/pkg/components/ui/form"
 	fm "queue-bite/pkg/form"
@@ -83,7 +84,7 @@ templ JoinForm(props *JoinFormData) {
                                 )... }
 					>
 						<span class="text-xl font-semibold after:content-['x']" { ui.BindNumberInputValue()... }></span>
-						<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/user-round.svg"/>
+						@svg.UserRound("w-4 h-4")
 					</div>
 				}
 				@ui.NumberInput() {

@@ -3,6 +3,7 @@ package view
 import (
 	"queue-bite/internal/features/waitlist/domain"
 	layout "queue-bite/internal/layouts"
+	"queue-bite/pkg/components/svg"
 	"strconv"
 )
 
@@ -24,7 +25,7 @@ templ VitrinePage(page *VitrinePageData) {
 					<div class="flex items-center gap-4 md:gap-6 text-muted-foreground">
 						if hasWaitingParties {
 							<div class="flex items-center gap-2">
-								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/users-round.svg"/>
+								@svg.UserRound("w-4 h-4")
 								if page.QueueStatus.TotalParties == 1 {
 									<span>1 party waiting</span>
 								} else {
@@ -32,12 +33,12 @@ templ VitrinePage(page *VitrinePageData) {
 								}
 							</div>
 							<div class="flex items-center gap-2">
-								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/clock-4.svg"/>
+								@svg.Clock4("w-4 h-4")
 								<span>{ page.QueueStatus.CurrentWaitTime.String() } wait</span>
 							</div>
 						} else {
 							<div class="flex items-center gap-2 text-success">
-								<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/clock-4.svg"/>
+								@svg.Clock4("w-4 h-4")
 								<span>No wait time</span>
 							</div>
 						}
