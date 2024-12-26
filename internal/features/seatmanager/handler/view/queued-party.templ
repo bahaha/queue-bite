@@ -3,6 +3,7 @@ package view
 import (
 	"fmt"
 	"queue-bite/internal/features/waitlist/domain"
+	"queue-bite/pkg/components/ui"
 	"strconv"
 	"time"
 )
@@ -14,28 +15,100 @@ type QueuedPartyProps struct {
 }
 
 templ QueuedParty(props *QueuedPartyProps) {
-	<ul>
-		<li><div>QueueOrder</div><div>{ strconv.Itoa(props.Position) }</div></li>
-		<li><div>PartyName</div><div>{ props.Name }</div></li>
-		<li><div>PartySize</div><div>{ strconv.Itoa(props.Size) }</div></li>
-		<li><div>RemainingWaitTime</div><div>{ props.RemainingWaitTime.String() }</div></li>
+	<div class="space-y-6">
+		<div class="space-y-2">
+			<h1 class="text-3xl font-semibold">Hello, { props.Name }</h1>
+			<div class="flex items-center gap-2 text-muted-foreground">
+				<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/user-round.svg"/>
+				<span class="text-lg">Party of {  strconv.Itoa(props.Size) }</span>
+			</div>
+		</div>
+	</div>
+	@QueueStatusView(props)
+	<div class="text-center text-muted-foreground">
+		<p>Queue ID: { string(props.ID) }</p>
+	</div>
+}
+
+templ QueueStatusView(props *QueuedPartyProps) {
+	<div
+		class="border border-secondary rounded-xl px-6"
+		hx-ext="sse"
+		hx-target="this"
+		hx-swap="outerHTML"
+		sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) }
+		sse-swap="notify:party:ready"
+	>
 		if props.ReadyForSeating {
-			<li>
-				<div>ReadyForSeating</div>
-				@SeatReady(props.ID)
-			</li>
-		} else {
-			<li>
-				<div>Status</div>
-				<div
-					hx-ext="sse"
-					sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) }
-					sse-swap="notify:party:ready"
-					hx-swap="outerHTML"
-				>
-					{ string(props.Status) }
+			<div class="pt-8 space-y-6">
+				<div class="flex items-center justify-center">
+					<div class="flex flex-col items-center">
+						<div class="w-20 h-20 rounded-full flex items-center justify-center bg-primary">
+							<svg viewBox="0 0 24 24" class="w-10 h-10 text-secondary">
+								<path fill="currentColor" d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"></path>
+							</svg>
+						</div>
+					</div>
 				</div>
-			</li>
+				<div class="space-y-2 text-center">
+					<h2 class="text-2xl font-medium">Your table is ready!</h2>
+					<p class="text-lg text-muted-foreground">
+						Please check in with the host
+					</p>
+				</div>
+			</div>
+		} else {
+			<div class="py-8">
+				<div class="relative flex items-center gap-4">
+					<div class="absolute top-7 left-2 right-2 h-1 bg-secondary">
+						<div class="bg-primary h-full w-0"></div>
+					</div>
+					<div class="flex flex-col items-center z-10 min-w-[64px]">
+						<div class="w-14 h-14 rounded-full flex items-center justify-center bg-gray-100">
+							<svg viewBox="0 0 24 24" class="w-7 h-7 text-primary">
+								<path fill="currentColor" d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"></path>
+							</svg>
+						</div>
+						<span class="text-sm mt-1 text-muted-foreground">Restaurant</span>
+					</div>
+					<div class="flex flex-col items-center z-10 ml-auto">
+						<div class="w-14 h-14 rounded-full flex items-center justify-center shadow-sm bg-primary">
+							<span class="text-white font-medium">YOU</span>
+						</div>
+						<span class="text-sm mt-1 text-muted-foreground">Your spot</span>
+					</div>
+				</div>
+			</div>
+			<div class="text-center space-y-2">
+				<h2 class="text-2xl font-medium">
+					if props.Position == 1 {
+						1 party ahead of you
+					} else {
+						{ strconv.Itoa(props.Position) } parties ahead of you
+					}
+				</h2>
+				<p class="text-lg text-muted-foreground">
+					Estimated wait time: ~{ props.RemainingWaitTime.String() }
+				</p>
+			</div>
 		}
-	</ul>
+		<div class="text-center my-6">
+			if props.ReadyForSeating {
+				<button
+					hx-post="/waitlist/check-in"
+					hx-target="main"
+					hx-swap="innerHTML"
+					{ ui.NewButton(ui.ButtonProps().
+                    WithSize(ui.Button.Sizes.Large).
+                    WithClass("w-full"))... }
+				>
+					Check in >
+				</button>
+			} else {
+				<p class="text-lg px-6 py-3 rounded-xl inline-block bg-secondary text-secondary-foreground">
+					We'll notify you when your table is ready
+				</p>
+			}
+		</div>
+	</div>
 }

@@ -15,10 +15,10 @@ type VitrinePageData struct {
 templ VitrinePage(page *VitrinePageData) {
 	{{ hasWaitingParties := page.QueueStatus.TotalParties != 0 }}
 	@layout.Base() {
-		if page.QueuedPartyProps == nil {
-			<main
-				class="max-w-lg mx-auto p-9 space-y-8 shadow-sm bg-muted rounded-lg self-center sm:-translate-y-8"
-			>
+		<main
+			class="max-w-lg mx-auto p-9 space-y-8 shadow-sm bg-muted rounded-lg self-center sm:-translate-y-8"
+		>
+			if page.QueuedPartyProps == nil {
 				<div class="space-y-4">
 					<h1 class="text-4xl font-semibold">Restaurant Waitlist</h1>
 					<div class="flex items-center gap-4 md:gap-6 text-muted-foreground">
@@ -44,9 +44,9 @@ templ VitrinePage(page *VitrinePageData) {
 					</div>
 				</div>
 				@JoinForm(page.Form)
-			</main>
-		} else {
-			@QueuedParty(page.QueuedPartyProps)
-		}
+			} else {
+				@QueuedParty(page.QueuedPartyProps)
+			}
+		</main>
 	}
 }

@@ -33,3 +33,10 @@ func NewQueuedPartyProps(party *domain.QueuedParty) *QueuedPartyProps {
 	props.ReadyForSeating = props.Status == d.PartyStatusReady
 	return props
 }
+
+func NewReadyPartyProps(partyID d.PartyID) *QueuedPartyProps {
+	props := &QueuedPartyProps{QueuedParty: &domain.QueuedParty{Party: &d.Party{}}}
+	props.ID = partyID
+	props.ReadyForSeating = true
+	return props
+}
