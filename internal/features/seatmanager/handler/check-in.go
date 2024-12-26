@@ -5,6 +5,7 @@ import (
 
 	log "queue-bite/internal/config/logger"
 	d "queue-bite/internal/domain"
+	"queue-bite/internal/features/seatmanager/domain"
 	"queue-bite/internal/features/seatmanager/service"
 	w "queue-bite/internal/features/waitlist/domain"
 	"queue-bite/pkg/session"
@@ -19,20 +20,20 @@ func (h *seatManagerHandler) HandlePartyCheckIn(
 	cookieQueuedParty *session.CookieConfig,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var partySession PartySession
+		var partySession domain.PartySession
 		if err := cookieManager.GetCookie(r, cookieQueuedParty, &partySession); err != nil {
 			logger.LogDebug(SEAT_MANAGER_CHECKIN, "could not access session cookie from check-in")
 			redirectToVisitPage(w, r)
 			return
 		}
 
-		err := seatManager.PartyCheckIn(r.Context(), d.PartyID(partySession.PartyID))
+		err := seatManager.PartyCheckIn(r.Context(), d.PartyID(partySession.ID))
 		if err != nil {
 			handleErrorOnCheckIn(logger, w, r, cookieManager, cookieQueuedParty, err)
 			return
 		}
 
-		logger.LogDebug(SEAT_MANAGER_CHECKIN, "party has just checked-in", "party id", partySession.PartyID)
+		logger.LogDebug(SEAT_MANAGER_CHECKIN, "party has just checked-in", "party id", partySession.ID)
 		w.Header().Add("HX-Location", "/yummy")
 	}
 }

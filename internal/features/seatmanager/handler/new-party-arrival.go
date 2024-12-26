@@ -126,7 +126,7 @@ func handleErrorOnNewPartyArrival(
 }
 
 func setQueuedPartyCookie(w http.ResponseWriter, cookieManager *session.CookieManager, cookieQueuedParty *session.CookieConfig, party *w.QueuedParty) {
-	session := &PartySession{PartyID: party.ID}
+	session := &domain.PartySession{ID: party.ID, Name: party.Name, Size: party.Size}
 	cookieManager.SetCookie(w, cookieQueuedParty, session)
 }
 

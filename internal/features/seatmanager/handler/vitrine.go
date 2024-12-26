@@ -8,6 +8,7 @@ import (
 
 	log "queue-bite/internal/config/logger"
 	hd "queue-bite/internal/features/hostdesk/service"
+	"queue-bite/internal/features/seatmanager/domain"
 	"queue-bite/internal/features/seatmanager/handler/view"
 	w "queue-bite/internal/features/waitlist/domain"
 	ws "queue-bite/internal/features/waitlist/service"
@@ -40,16 +41,16 @@ func (h *VitrineHandler) HandleVitrineDisplay(
 			return
 		}
 
-		var partySession PartySession
+		var partySession domain.PartySession
 		if err := cookieManager.GetCookie(r, cookieQueuedParty, &partySession); err != nil {
 			h.renderVisitorView(w, r, status, totalCapacity)
 			return
 		}
 
-		queuedParty, err := waitlist.GetQueuedParty(r.Context(), partySession.PartyID)
+		queuedParty, err := waitlist.GetQueuedParty(r.Context(), partySession.ID)
 		if err != nil || queuedParty == nil {
 			logger.LogDebug("party no longer in queue, clearing cookie",
-				"party_id", partySession.PartyID)
+				"party_id", partySession.ID)
 			cookieManager.ClearCookie(w, cookieQueuedParty)
 			h.renderVisitorView(w, r, status, totalCapacity)
 			return

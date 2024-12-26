@@ -1,8 +1,69 @@
 package view
 
-import "queue-bite/internal/domain"
+import (
+	"queue-bite/internal/domain"
+	layout "queue-bite/internal/layouts"
+	"strconv"
+)
 
-templ Yummy(partyID domain.PartyID) {
-	<div>{ string(partyID) } </div>
-	<div>Enjoy your meal 😋😋😋 </div>
+type YummyProps struct {
+	ID   domain.PartyID
+	Name string
+	Size int
+}
+
+templ Yummy(props *YummyProps) {
+	@layout.Base() {
+		<main class="max-w-lg mx-auto p-9 space-y-8 shadow-sm bg-muted rounded-lg self-center">
+			<div class="space-y-8">
+				<div class="flex flex-col items-center gap-4">
+					<div class="w-20 h-20 rounded-full flex items-center justify-center bg-success">
+						<svg viewBox="0 0 24 24" class="w-10 h-10 text-muted">
+							<path fill="currentColor" d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"></path>
+						</svg>
+					</div>
+					<div class="text-center">
+						<h1 class="text-2xl font-medium mb-1">Your table is ready!</h1>
+						<p class="text-muted-foreground">Please proceed to seating</p>
+					</div>
+				</div>
+			</div>
+			<div class="bg-background rounded-xl border p-6">
+				<div class="flex items-start justify-between mb-6">
+					<div>
+						<h2 class="text-xl font-medium mb-1">{ props.Name }</h2>
+						<div class="flex items-center gap-2 text-muted-foreground">
+							<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/user-round.svg"/>
+							<span>Party of { strconv.Itoa(props.Size) }</span>
+						</div>
+					</div>
+					<div class="px-4 py-2 rounded-lg text-white text-sm font-medium bg-success">
+						Table 12
+					</div>
+				</div>
+				<div class="p-4 rounded-lg bg-secondary">
+					<div class="flex items-center gap-2">
+						<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/map-pin.svg"/>
+						<span class="font-medium">Meet our host at the entrance</span>
+					</div>
+				</div>
+			</div>
+			<div
+				class="p-6 rounded-xl text-white space-y-2 bg-primary"
+			>
+				<h3 class="font-medium">Today's Specials</h3>
+				<p class="text-sm opacity-90">
+					View our menu and daily specials while we escort you to your table
+				</p>
+				<button class="flex items-center gap-1 text-sm mt-2">
+					Open Menu
+					<img class="w-4 h-4" src="https://unpkg.com/lucide-static@latest/icons/chevron-right.svg"/>
+				</button>
+			</div>
+			<div class="text-center text-muted-foreground">
+				<p>Queue ID: { string(props.ID) }</p>
+				<p class="text-sm mt-1">Thank you for dining with us</p>
+			</div>
+		</main>
+	}
 }
