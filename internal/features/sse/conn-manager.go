@@ -45,6 +45,7 @@ func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus) *sse {
 
 func (s *sse) subscribeToEvents() {
 	s.eventbus.Subscribe(TopicNotifyPartyReady, s.HandleNotifyPartyReady)
+	s.eventbus.Subscribe(TopicNotifyPartyQueueStatusUpdate, s.HandleNotifyPartyQueueStatusUpdate)
 }
 
 func (s *sse) RegisterClient(w http.ResponseWriter, partyID d.PartyID) {

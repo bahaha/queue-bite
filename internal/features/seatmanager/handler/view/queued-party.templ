@@ -37,7 +37,7 @@ templ QueueStatusView(props *QueuedPartyProps) {
 		hx-target="this"
 		hx-swap="outerHTML"
 		sse-connect={ fmt.Sprintf("/sse/waitlist/%s", props.ID) }
-		sse-swap="notify:party:ready"
+		sse-swap="notify:party:ready,notify:party:queue_update"
 	>
 		if props.ReadyForSeating {
 			<div class="pt-8 space-y-6">
@@ -81,15 +81,19 @@ templ QueueStatusView(props *QueuedPartyProps) {
 			</div>
 			<div class="text-center space-y-2">
 				<h2 class="text-2xl font-medium">
-					if props.Position == 1 {
+					if props.Position == 0 {
+						You're the next!
+					} else if props.Position == 1 {
 						1 party ahead of you
 					} else {
 						{ strconv.Itoa(props.Position) } parties ahead of you
 					}
 				</h2>
-				<p class="text-lg text-muted-foreground">
-					Estimated wait time: ~{ props.RemainingWaitTime.String() }
-				</p>
+				if props.Position != 0 {
+					<p class="text-lg text-muted-foreground">
+						Estimated wait time: ~{ props.RemainingWaitTime.String() }
+					</p>
+				}
 			</div>
 		}
 		<div class="text-center my-6">

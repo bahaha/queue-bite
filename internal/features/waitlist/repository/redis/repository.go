@@ -242,7 +242,7 @@ func (r *redisWaitlistRepository) ScanParties(ctx context.Context) (<-chan *doma
 			for _, partyID := range ids {
 				queuedParty, err := r.GetParty(ctx, d.PartyID(partyID))
 				if err != nil {
-					r.logger.LogDebug(REDIS_WAITLIST, "error getting party %s: %w", partyID, err)
+					r.logger.LogErr(REDIS_WAITLIST, err, "error getting party", "party id", partyID)
 					continue
 				}
 

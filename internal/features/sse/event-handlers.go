@@ -7,7 +7,6 @@ import (
 
 	"github.com/a-h/templ"
 
-	d "queue-bite/internal/domain"
 	"queue-bite/internal/features/seatmanager/handler/view"
 	"queue-bite/internal/platform/eventbus"
 )
@@ -20,13 +19,22 @@ func (s *sse) HandleNotifyPartyReady(ctx context.Context, event eventbus.Event) 
 		return nil
 	}
 
-	notifyClient(client, TopicNotifyPartyReady, renderSeatReady(e.PartyID))
+	notifyClient(client, TopicNotifyPartyReady, view.QueueStatusView(view.NewReadyPartyProps(e.PartyID)))
 	s.logger.LogDebug(SSE, "write seat ready button for next party", "party id", e.PartyID)
 	return nil
 }
 
-func renderSeatReady(partyID d.PartyID) templ.Component {
-	return view.QueueStatusView(view.NewReadyPartyProps(partyID))
+func (s *sse) HandleNotifyPartyQueueStatusUpdate(ctx context.Context, event eventbus.Event) error {
+	e := event.(*NotifyPartyQueueStatusUpdateEvent)
+	client := s.getClient(e.QueuedParty.ID)
+	if client == nil {
+		s.logger.LogDebug(SSE, "no registered client found on this server", "party id", e.QueuedParty.ID)
+		return nil
+	}
+
+	notifyClient(client, TopicNotifyPartyQueueStatusUpdate, view.QueueStatusView(view.NewQueuedPartyProps(e.QueuedParty)))
+	s.logger.LogDebug(SSE, "update queue status for waiting party", "party id", e.QueuedParty.ID)
+	return nil
 }
 
 func notifyClient(client *Client, eventName string, comp templ.Component) {

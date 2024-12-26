@@ -10,6 +10,7 @@ import (
 	hdd "queue-bite/internal/features/hostdesk/domain"
 	hostdesk "queue-bite/internal/features/hostdesk/service"
 	"queue-bite/internal/features/seatmanager/domain"
+	"queue-bite/internal/features/sse"
 	w "queue-bite/internal/features/waitlist/domain"
 	waitlist "queue-bite/internal/features/waitlist/service"
 	"queue-bite/internal/platform/eventbus"
@@ -167,6 +168,20 @@ func (m *seatManager) PartyCheckIn(ctx context.Context, partyID d.PartyID) error
 		return err
 	}
 	m.logger.LogDebug(SEAT_MANAGER, "party check in", "party", party)
+	go func() {
+		ctx := context.Background()
+		queuedParties, err := m.waitlist.GetQueuedParties(ctx)
+		if err != nil {
+			m.logger.LogErr(SEAT_MANAGER, err, "could not get parties in queue")
+			return
+		}
+
+		for party := range queuedParties {
+			if party.Status == d.PartyStatusWaiting {
+				m.eventbus.Publish(ctx, &sse.NotifyPartyQueueStatusUpdateEvent{QueuedParty: party})
+			}
+		}
+	}()
 	return nil
 }
 

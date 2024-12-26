@@ -8,6 +8,7 @@ import (
 
 func (s *Server) RegisterEvents(eventRegistry *eventbus.EventRegistry) {
 	eventRegistry.Register(sse.TopicNotifyPartyReady, &sse.NotifyPartyReadyEvent{})
+	eventRegistry.Register(sse.TopicNotifyPartyQueueStatusUpdate, &sse.NotifyPartyQueueStatusUpdateEvent{})
 
 	eventRegistry.Register(hostdesk.TopicPartyPreserved, &hostdesk.SeatsPreservedEvent{})
 	eventRegistry.Register(hostdesk.TopicPartyServiceCompleted, &hostdesk.PartyServiceCompeletedEvent{})
