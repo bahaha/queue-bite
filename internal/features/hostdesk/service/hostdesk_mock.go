@@ -72,6 +72,21 @@ func (mr *MockHostDeskMockRecorder) GetCurrentCapacity(ctx any) *gomock.Call {
         return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentCapacity", reflect.TypeOf((*MockHostDesk)(nil).GetCurrentCapacity), ctx)
 }
 
+// GetTotalCapacity mocks base method.
+func (m *MockHostDesk) GetTotalCapacity(ctx context.Context) (int, error) {
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "GetTotalCapacity", ctx)
+        ret0, _ := ret[0].(int)
+        ret1, _ := ret[1].(error)
+        return ret0, ret1
+}
+
+// GetTotalCapacity indicates an expected call of GetTotalCapacity.
+func (mr *MockHostDeskMockRecorder) GetTotalCapacity(ctx any) *gomock.Call {
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalCapacity", reflect.TypeOf((*MockHostDesk)(nil).GetTotalCapacity), ctx)
+}
+
 // HasPartyOccupiedSeat mocks base method.
 func (m *MockHostDesk) HasPartyOccupiedSeat(ctx context.Context, partyID domain.PartyID) bool {
         m.ctrl.T.Helper()

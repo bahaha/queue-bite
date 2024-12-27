@@ -11,11 +11,24 @@ import (
 
 var SSE = "sse"
 
+// ServerSentEvents manages real-time event streaming to connected clients.
+// Handles SSE connections and routes events to appropriate clients.
 type ServerSentEvents interface {
+	// RegisterClient establishes SSE connection with client browser.
+	// Sets up required headers and begins streaming for specified party.
 	RegisterClient(w http.ResponseWriter, partyID d.PartyID)
+
+	// UnregisterClient removes client connection and cleans up resources.
+	// Called when client disconnects or connection times out.
 	UnregisterClient(partyID d.PartyID)
 
+	// HandleNotifyPartyReady processes ready status events.
+	// Streams notification to client when their party becomes ready.
 	HandleNotifyPartyReady(ctx context.Context, event eventbus.Event) error
+
+	// HandleNotifyPartyQueueStatusUpdate processes queue updates.
+	// Streams queue position and wait time updates to connected clients.
+	HandleNotifyPartyQueueStatusUpdate(ctx context.Context, event eventbus.Event) error
 }
 
 type sse struct {
@@ -31,7 +44,7 @@ type Client struct {
 	Done    chan struct{}
 }
 
-func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus) *sse {
+func NewServerSentEvent(logger log.Logger, eventbus eventbus.EventBus) ServerSentEvents {
 	svc := &sse{
 		logger:   logger,
 		eventbus: eventbus,

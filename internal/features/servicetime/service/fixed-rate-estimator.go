@@ -12,6 +12,13 @@ type FixedRateEstimator struct {
 	timePerGuest time.Duration
 }
 
+// Provides a simple, fixed-time-per-guest estimation approach suitable for uniform service scenarios.
+// Accepts a `timePerGuest` parameter to define the base time per guest
+//
+// Example:
+//
+//	// This estimator will allocate 5 minutes of service time per guest.
+//	estimator := NewFixedRateEstimator(5 * time.Minute)
 func NewFixedRateEstimator(timePerGuest time.Duration) *FixedRateEstimator {
 	return &FixedRateEstimator{
 		timePerGuest: timePerGuest,

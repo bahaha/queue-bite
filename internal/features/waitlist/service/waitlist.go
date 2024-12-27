@@ -17,47 +17,31 @@ import (
 
 var WAITLIST = "waitlist"
 
+// QueuedPartyProvider defines interface for streaming parties in queue.
+// Useful for iterating through large queues efficiently.
 type QueuedPartyProvider interface {
-
-	// GetQueuedParties returns a channel that streams parties currently in the queue.
-	// Parties are yielded in their queue order (FIFO).
-	// The channel is closed when all parties have been streamed or context is cancelled.
-	// This method allows for efficient iteration over large queues.
+	// GetQueuedParties returns a channel that yields parties in queue order.
+	// Channel is closed when iteration completes or context is cancelled.
 	GetQueuedParties(ctx context.Context) (<-chan *domain.QueuedParty, error)
 }
 
-// Waitlist provides operations for managing a waiting queue.
-// It handles party joining, leaving, and status queries while maintaining
-// wait time calculations and queue positions.
+// Waitlist manages the restaurant's waiting queue operations.
 type Waitlist interface {
 	QueuedPartyProvider
 
-	// HasPartyExists return if a party in waitlist queue.
 	HasPartyExists(ctx context.Context, partyID d.PartyID) bool
 
-	// JoinQueue adds a new party to the waitlist queue.
-	// It calculates estimated service duration and waiting time,
-	// assigns a queue position, and returns the queued party information.
-	// Returns ErrPartyAlreadyQueued if the party is already in queue.
 	JoinQueue(ctx context.Context, party *d.Party) (*domain.QueuedParty, error)
 
-	// LeaveQueue removes a party from the waitlist queue.
-	// This updates wait times for remaining parties in the queue.
-	// If the party is not found, it returns nil without error.
 	LeaveQueue(ctx context.Context, partyID d.PartyID) error
 
-	// GetQueueStatus returns the current state of the waitlist,
-	// including total number of waiting parties and estimated wait time
-	// for new parties joining the queue.
+	// GetQueueStatus returns current queue metrics like total parties and wait times
 	GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error)
 
-	// GetQueuedParty retrieves the current status of a party in the queue.
-	// Returns the party's current position and estimated waiting time.
-	// Returns nil, nil if the party is not found in the queue.
+	// GetQueuedParty retrieves a specific party's queue information with its position in the queue
 	GetQueuedParty(ctx context.Context, partyID d.PartyID) (*domain.QueuedParty, error)
 
-	// HandlePartyReady handle the event of party ready
-	// if the queued party status is not waiting, throws ErrInvalidStateTransition
+	// HandlePartyReady processes a party becoming ready for seating
 	HandlePartyReady(ctx context.Context, partyID d.PartyID) error
 }
 

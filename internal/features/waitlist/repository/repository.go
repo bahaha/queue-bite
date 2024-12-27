@@ -32,10 +32,23 @@ type WaitlistRepositoy interface {
 	// GetQueueStatus retrieves current queue metrics.
 	GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error)
 
-	// ScanParties retrieves parties in batches using cursor-based pagination.
-	// The cursor value of 0 starts from the beginning.
-	// Returns the next cursor value and a slice of parties.
-	// When cursor returns 0, no more parties are available.
+	// ScanParties streams queued parties in order through a channel.
+	// Uses batched retrieval (ZRANGE) with configured scanRange to manage memory usage.
+	// Streaming provides efficient iteration over large queues without loading all at once.
+	//
+	// Usage:
+	//   parties, err := repo.ScanParties(ctx)
+	//   if err != nil {
+	//       return err
+	//   }
+	//   for party := range parties {
+	//       // Process each party
+	//   }
+	//
+	// The channel is closed when:
+	//  - All parties have been streamed
+	//  - Context is cancelled
+	//  - Error occurs during scanning
 	ScanParties(ctx context.Context) (<-chan *domain.QueuedParty, error)
 
 	// UpdatePartyStatus update a party's current state in the queue.

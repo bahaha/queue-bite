@@ -15,6 +15,9 @@ import (
 
 var REDIS_WAITLIST = "waitlist/redis"
 
+// redisWaitlistRepository implements repository for waitlist queue using Redis.
+// It manages both queue ordering and party details with optimized Lua scripts
+// for atomic operations.
 type redisWaitlistRepository struct {
 	logger    log.Logger
 	client    *redis.Client
@@ -87,6 +90,21 @@ func (r *redisWaitlistRepository) AddParty(ctx context.Context, party *domain.Qu
 	return party, nil
 }
 
+// RemoveParty atomically removes party from queue and updates wait time calculations.
+// Wait time adjustment depends on party's position:
+//   - If party is at queue head (pos=0): Increment total service time counter
+//   - If party is in middle: Decrement prefixsum for all parties after removed position
+//
+// This optimization avoids updating all parties' prefixsum when head party leaves.
+// Wait time formula:
+//   - party_prefixsum - total_service_time
+//
+// Also performs:
+//   - Removes party details and associated keys
+//   - Updates waiting party counter if party was in waiting status
+//   - Cleans up queue keys if queue becomes empty
+//
+// Returns ErrPartyNotFound if party doesn't exist in queue.
 func (r *redisWaitlistRepository) RemoveParty(ctx context.Context, partyID d.PartyID) error {
 	leaveKeys := []string{
 		r.keys.waitingQueue(),
@@ -275,9 +293,8 @@ func (r *redisWaitlistRepository) UpdatePartyStatus(ctx context.Context, partyID
 	return nil
 }
 
-// deserializeTime converts Redis response (int64 or string in seconds)
-// to time.Duration. It handles both numeric formats gracefully:
-// Returns 0 duration if parsing fails.
+// deserializeTime converts seconds value to time.Duration.
+// Handles both integer and string formats from Redis, returns 0 for invalid formats.
 func deserializeTime(val interface{}) time.Duration {
 	switch v := val.(type) {
 	case int64:

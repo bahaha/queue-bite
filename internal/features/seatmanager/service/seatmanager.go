@@ -24,7 +24,10 @@ type SeatManager interface {
 	WatchSeatVacancy(ctx context.Context) error
 	UnwatchSeatVacancy(ctx context.Context) error
 
+	// ProcessNewParty handles new party arrival with optimistic locking.
+	// Determines whether party can be served immediately or must join queue.
 	ProcessNewParty(ctx context.Context, party *d.Party) (*w.QueuedParty, error)
+	// PartyCheckIn handles party check-in process and triggers queue updates.
 	PartyCheckIn(ctx context.Context, partyID d.PartyID) error
 }
 
@@ -74,6 +77,15 @@ func (m *seatManager) UnwatchSeatVacancy(ctx context.Context) error {
 	return nil
 }
 
+// ProcessNewParty handles party arrival using optimistic locking for seat preservation.
+// Flow:
+//  1. Get current capacity and queue status
+//  2. Determine party state based on strategy (waiting/ready/serving)
+//  3. Try to preserve seats if strategy allows
+//  4. Either start service immediately or add to queue
+//  5. Retry on version mismatch up to max retries
+//
+// Cleanup: Releases preserved seats if operation fails after preservation
 func (m *seatManager) ProcessNewParty(ctx context.Context, party *d.Party) (*w.QueuedParty, error) {
 	for retries := 0; retries < m.preserveMaxRetries; retries++ {
 		capacity, version, err := m.hostdesk.GetCurrentCapacity(ctx)
@@ -148,6 +160,14 @@ func (m *seatManager) ProcessNewParty(ctx context.Context, party *d.Party) (*w.Q
 	return nil, d.ErrTooManyOptimisticLockRetries
 }
 
+// PartyCheckIn transitions party from queue to service.
+// Flow:
+//  1. Verify party exists in queue
+//  2. Remove from queue unless already serving
+//  3. Update host desk state for service
+//  4. Asynchronously notify other waiting parties of status update
+//
+// Note: Queue removal and check-in are not atomic - may need transaction-like handling
 func (m *seatManager) PartyCheckIn(ctx context.Context, partyID d.PartyID) error {
 	party, err := m.waitlist.GetQueuedParty(ctx, partyID)
 	if err != nil {

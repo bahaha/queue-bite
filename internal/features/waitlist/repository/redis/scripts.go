@@ -1,19 +1,30 @@
 package redis
 
-// KEYS:
-//   - waitlist_key
-//   - party_detail_key
-//   - total_wait_prefixsum_key
-//   - party_wait_prefixsum_key
-//   - total_service_time_key
-//   - waiting_party_counter_key
+// joinScript atomically adds a party to the waitlist queue and updates timing metrics
 //
-// ARGV:
-//   - party_id
-//   - estimated_service_time
-//   - join_score
-//   - ttl
-//   - is_party_waiting
+// Keys:
+//
+//	waitlist_key           - Sorted set of parties in queue order
+//	party_detail_key       - Hash storing party details
+//	total_wait_prefixsum   - Total wait time for all parties
+//	party_wait_prefixsum   - Individual party's wait time prefixsum
+//	total_service_time     - Total service time of all parties
+//	waiting_party_counter  - Number of parties in waiting status
+//
+// Args:
+//
+//	party_id              - Unique party identifier
+//	estimated_service_time - Expected service duration in seconds
+//	join_score            - Score for queue ordering (timestamp)
+//	ttl                   - TTL for keys in seconds
+//	is_party_waiting      - "1" if party starts in waiting status
+//
+// Returns: [success_cnt, position, wait_time]
+//
+//	success_cnt = 0: Party already exists
+//	success_cnt = 1: Successfully added
+//	position: Party's position in queue (0-based)
+//	wait_time: Estimated wait time for this party
 const joinScript = `
 local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
@@ -50,13 +61,24 @@ end
 return {success_cnt, wait_entries_ahead, next_wait - total_service_time}
 `
 
-// KEYS:
-//   - party_detail_key
-//   - waitlist_key
-//   - party_wait_prefixsum_key
+// getPartyScript atomically retrieves party details and queue position
 //
-// ARGV:
-//   - party_id
+// Keys:
+//
+//	party_detail_key     - Hash storing party details
+//	waitlist_key         - Queue ordered set
+//	party_wait_prefixsum - Party's wait time
+//	total_service_time   - Total active service time
+//
+// Args:
+//
+//	party_id             - Party to retrieve
+//
+// Returns: [details, wait_time, position] or nil if party not found
+//
+//	details: Hash of party details
+//	wait_time: Current wait time estimate
+//	position: Queue position (0-based)
 const getPartyScript = `
 local party_detail_key = KEYS[1]
 local waitlist_key = KEYS[2]
@@ -84,19 +106,30 @@ end
 return {details, wait_time - total_service_time, position}
 `
 
-// KEYS:
-//   - waitlist_key
-//   - party_detail_key
-//   - total_service_time_key
-//   - party_wait_prefixsum_key_prefix
-//   - total_wait_prefixsum_key
-//   - waiting_party_counter_key
+// leaveScript atomically removes party and updates queue metrics
 //
-// ARGV:
-//   - party_id
-//   - estimated_service_time_field
-//   - status_field
-//   - status_party_wait_val
+// Keys:
+//
+//	waitlist_key              - Queue ordered set
+//	party_detail_key          - Party details hash
+//	total_service_time        - Service time counter
+//	party_wait_prefixsum_prefix - Prefix for wait time keys
+//	total_wait_prefixsum      - Total wait counter
+//	waiting_party_counter     - Waiting status counter
+//
+// Args:
+//
+//	party_id                  - Party to remove
+//	estimated_service_time_field - Field name for service time
+//	status_field             - Field name for status
+//	status_party_wait_val    - Status value for waiting
+//
+// Returns: [position, service_time] or nil if not found
+//
+//	position: Party's position in queue
+//	service_time: Party's service duration
+//	has_queue: Whether queue still exists
+//	deleted_keys: Keys that were cleaned up
 const leaveScript = `
 local waitlist_key = KEYS[1]
 local party_detail_key = KEYS[2]
@@ -146,5 +179,5 @@ if has_wait == 0 then
     table.insert(del_keys, total_wait_prefixsum_key)
 end
 redis.call('DEL', unpack(del_keys))
-return {rank, est, has_wait, del_keys}
+return {rank, est, has_wait}
 `
